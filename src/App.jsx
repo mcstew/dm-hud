@@ -1,4 +1,40 @@
 import React, { useState, useCallback, useEffect, useRef, Component } from 'react';
+import {
+  IconUsers,
+  IconSwords,
+  IconUser,
+  IconMapPin,
+  IconBackpack,
+  IconBook,
+  IconCompass,
+  IconSword,
+  IconSettings,
+  IconMicrophone,
+  IconMessageCircle,
+  IconTrash,
+  IconCheck,
+  IconX,
+  IconPlayerPlay,
+  IconPlayerStop,
+  IconCircleFilled,
+  IconChevronLeft,
+  IconPlus,
+  IconKey,
+  IconDice5,
+  IconWorld,
+  IconCalendar,
+  IconChevronDown,
+  IconHeart,
+  IconShield,
+  IconActivity,
+  IconAlertTriangle,
+  IconFileText,
+  IconSend,
+  IconUserPlus,
+  IconGhost2,
+  IconRefresh,
+  IconDownload,
+} from '@tabler/icons-react';
 
 // ============================================
 // DM HUD v2.0 - Multi-Campaign + BYOK
@@ -23,25 +59,27 @@ class ErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-          <div className="bg-slate-800 border border-red-500 rounded-xl p-6 max-w-lg">
-            <h2 className="text-red-400 font-semibold text-lg mb-2">⚠️ Something went wrong</h2>
-            <p className="text-slate-300 text-sm mb-4">
+        <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-red-500 rounded-xl p-6 max-w-lg">
+            <h2 className="text-red-400 font-semibold text-lg mb-2 flex items-center gap-2">
+              <IconAlertTriangle size={20} /> Something went wrong
+            </h2>
+            <p className="text-gray-300 text-sm mb-4">
               The app encountered an error. Your data is safe - try refreshing the page.
             </p>
-            <div className="bg-slate-900 border border-slate-700 rounded p-3 mb-4">
-              <p className="text-xs text-slate-400 font-mono">{this.state.error?.toString()}</p>
+            <div className="bg-gray-950 border border-gray-800 rounded p-3 mb-4">
+              <p className="text-xs text-gray-400 font-mono">{this.state.error?.toString()}</p>
             </div>
             <div className="flex gap-2">
               <button
                 onClick={() => window.location.reload()}
-                className="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded font-medium"
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded font-medium transition-colors"
               >
                 Refresh App
               </button>
               <button
                 onClick={() => this.setState({ hasError: false, error: null, errorInfo: null })}
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded"
+                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded transition-colors"
               >
                 Try to Continue
               </button>
@@ -55,30 +93,39 @@ class ErrorBoundary extends Component {
   }
 }
 
-// Custom SVG Icons
+// Icon wrapper for consistent sizing
 const Icons = {
-  party: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M12 2a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM6 8a3 3 0 1 0 0 6M18 8a3 3 0 1 0 0 6"/><path d="M12 14c-4 0-6 2-6 4v2h12v-2c0-2-2-4-6-4z"/></svg>),
-  enemy: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><circle cx="12" cy="8" r="5"/><path d="M9 8h.01M15 8h.01M9 11c.5.5 1.5 1 3 1s2.5-.5 3-1M8 14l-3 7h14l-3-7"/></svg>),
-  character: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><circle cx="12" cy="7" r="4"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>),
-  location: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>),
-  item: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M14.5 2l6 6-8.5 8.5a2 2 0 0 1-1.4.6H7v-3.6a2 2 0 0 1 .6-1.4L14.5 2zM16 8l-2-2M3 22l3-3"/></svg>),
-  plot: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>),
-  exploration: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/></svg>),
-  combat: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M6.5 6.5l11 11M6.5 17.5l11-11"/></svg>),
-  settings: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>),
-  audio: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></svg>),
-  transcript: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10z"/></svg>),
-  delete: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>),
-  check: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3 h-3"><path d="M20 6L9 17l-5-5"/></svg>),
-  close: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M18 6L6 18M6 6l12 12"/></svg>),
-  play: (<svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3"><path d="M8 5v14l11-7z"/></svg>),
-  stop: (<svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>),
-  record: (<svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><circle cx="12" cy="12" r="8"/></svg>),
-  back: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>),
-  plus: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><path d="M12 5v14M5 12h14"/></svg>),
-  key: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>),
-  book: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>),
-  dice: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-10 h-10"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/><circle cx="16" cy="8" r="1.5" fill="currentColor"/><circle cx="8" cy="16" r="1.5" fill="currentColor"/><circle cx="16" cy="16" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg>),
+  party: <IconUsers size={16} stroke={2} />,
+  enemy: <IconSwords size={16} stroke={2} />,
+  character: <IconUser size={16} stroke={2} />,
+  location: <IconMapPin size={16} stroke={2} />,
+  item: <IconBackpack size={16} stroke={2} />,
+  plot: <IconBook size={16} stroke={2} />,
+  exploration: <IconCompass size={16} stroke={2} />,
+  combat: <IconSword size={16} stroke={2} />,
+  settings: <IconSettings size={16} stroke={2} />,
+  audio: <IconMicrophone size={16} stroke={2} />,
+  transcript: <IconMessageCircle size={16} stroke={2} />,
+  delete: <IconTrash size={14} stroke={2} />,
+  check: <IconCheck size={12} stroke={2.5} />,
+  close: <IconX size={16} stroke={2} />,
+  play: <IconPlayerPlay size={12} stroke={2} />,
+  stop: <IconPlayerStop size={16} stroke={2} />,
+  record: <IconCircleFilled size={16} />,
+  back: <IconChevronLeft size={16} stroke={2} />,
+  plus: <IconPlus size={20} stroke={2} />,
+  key: <IconKey size={16} stroke={2} />,
+  book: <IconBook size={16} stroke={2} />,
+  dice: <IconDice5 size={40} stroke={1.5} />,
+  world: <IconWorld size={16} stroke={2} />,
+  calendar: <IconCalendar size={16} stroke={2} />,
+  chevronDown: <IconChevronDown size={16} stroke={2} />,
+  heart: <IconHeart size={16} stroke={2} />,
+  shield: <IconShield size={16} stroke={2} />,
+  activity: <IconActivity size={16} stroke={2} />,
+  fileText: <IconFileText size={16} stroke={2} />,
+  send: <IconSend size={16} stroke={2} />,
+  userPlus: <IconUserPlus size={16} stroke={2} />,
 };
 
 // D&D 5.5e Conditions
@@ -86,8 +133,8 @@ const DND_CONDITIONS = ['Blinded', 'Charmed', 'Deafened', 'Frightened', 'Grapple
 
 // Card types
 const CARD_TYPES = {
-  CHARACTER: { label: 'Character', icon: 'character', color: 'violet' },
-  LOCATION: { label: 'Location', icon: 'location', color: 'cyan' },
+  CHARACTER: { label: 'Character', icon: 'character', color: 'indigo' },
+  LOCATION: { label: 'Location', icon: 'location', color: 'emerald' },
   ITEM: { label: 'Item', icon: 'item', color: 'amber' },
   PLOT: { label: 'Plot', icon: 'plot', color: 'pink' },
   ENEMY: { label: 'Enemy', icon: 'enemy', color: 'red' },
@@ -173,11 +220,11 @@ const useStorage = (key, defaultValue) => {
 // Utility components
 const Badge = ({ children, variant = 'default', size = 'md' }) => {
   const variants = {
-    default: 'bg-slate-700 text-slate-200',
+    default: 'bg-gray-800 text-gray-300',
     canon: 'bg-emerald-900/60 text-emerald-300 border border-emerald-500/40',
     riff: 'bg-amber-900/40 text-amber-300 border border-dashed border-amber-500/50',
     status: 'bg-purple-900/50 text-purple-300 border border-purple-500/40',
-    pc: 'bg-violet-900/50 text-violet-300 border border-violet-500/40',
+    pc: 'bg-indigo-900/50 text-indigo-300 border border-indigo-500/40',
   };
   const sizes = { sm: 'px-1.5 py-0.5 text-[10px]', md: 'px-2 py-0.5 text-xs' };
   return <span className={`rounded font-medium ${variants[variant]} ${sizes[size]}`}>{children}</span>;
@@ -185,10 +232,10 @@ const Badge = ({ children, variant = 'default', size = 'md' }) => {
 
 const Button = ({ children, onClick, variant = 'default', size = 'md', className = '', disabled = false }) => {
   const variants = {
-    default: 'bg-slate-700 hover:bg-slate-600 text-slate-200',
-    primary: 'bg-violet-600 hover:bg-violet-500 text-white',
+    default: 'bg-gray-800 hover:bg-gray-700 text-gray-200',
+    primary: 'bg-indigo-600 hover:bg-indigo-500 text-white',
     danger: 'bg-red-600/80 hover:bg-red-500 text-white',
-    ghost: 'bg-transparent hover:bg-slate-700/50 text-slate-400 hover:text-slate-200',
+    ghost: 'bg-transparent hover:bg-gray-800/50 text-gray-400 hover:text-gray-200',
     success: 'bg-emerald-600 hover:bg-emerald-500 text-white',
     riff: 'bg-amber-600/80 hover:bg-amber-500 text-white',
   };
@@ -202,7 +249,7 @@ const Button = ({ children, onClick, variant = 'default', size = 'md', className
 };
 
 const IconButton = ({ icon, onClick, variant = 'ghost', title = '' }) => {
-  const variants = { ghost: 'hover:bg-slate-700/50 text-slate-400 hover:text-slate-200', danger: 'hover:bg-red-900/50 text-slate-400 hover:text-red-400' };
+  const variants = { ghost: 'hover:bg-gray-800/50 text-gray-400 hover:text-gray-200', danger: 'hover:bg-red-900/50 text-gray-400 hover:text-red-400' };
   return <button onClick={onClick} title={title} className={`p-1.5 rounded transition-all ${variants[variant]}`}>{Icons[icon]}</button>;
 };
 
@@ -210,9 +257,9 @@ const ConfirmModal = ({ isOpen, title, message, onConfirm, onCancel }) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[100]">
-      <div className="bg-slate-800 rounded-lg border border-slate-600 p-4 max-w-sm mx-4">
+      <div className="bg-gray-900 rounded-lg border border-gray-700 p-4 max-w-sm mx-4">
         <h3 className="font-semibold text-white mb-2">{title}</h3>
-        <p className="text-sm text-slate-300 mb-4">{message}</p>
+        <p className="text-sm text-gray-300 mb-4">{message}</p>
         <div className="flex gap-2 justify-end">
           <Button variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>
           <Button variant="danger" size="sm" onClick={onConfirm}>Delete</Button>
@@ -271,55 +318,57 @@ const PlayerRosterModal = ({ isOpen, onClose, playerRoster, onSave }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-2xl max-h-[80vh] flex flex-col">
-        <div className="p-4 border-b border-slate-700 flex items-center justify-between">
-          <h2 className="font-semibold">Player Roster</h2>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 rounded-xl border border-gray-800 w-full max-w-2xl max-h-[80vh] flex flex-col">
+        <div className="p-4 border-b border-gray-800 flex items-center justify-between">
+          <h2 className="font-semibold flex items-center gap-2">
+            <IconUsers size={18} /> Player Roster
+          </h2>
           <IconButton icon="close" onClick={onClose} />
         </div>
 
         <div className="flex-1 overflow-auto p-4">
-          <p className="text-xs text-slate-500 mb-4">
+          <p className="text-xs text-gray-500 mb-4">
             Define your players and their characters to prevent AI from creating duplicates. Include common aliases and mispronunciations.
           </p>
 
           <div className="space-y-3">
             {roster.map(player => (
-              <div key={player.id} className="bg-slate-900 border border-slate-700 rounded-lg p-3">
+              <div key={player.id} className="bg-gray-950 border border-gray-800 rounded-lg p-3">
                 <div className="grid grid-cols-2 gap-3 mb-2">
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1">Player Name (Real)</label>
+                    <label className="block text-xs text-gray-400 mb-1">Player Name (Real)</label>
                     <input
                       type="text"
                       value={player.playerName}
                       onChange={(e) => updatePlayer(player.id, { playerName: e.target.value })}
-                      className="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-sm text-white"
+                      className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm text-white focus:border-indigo-500 focus:outline-none transition-colors"
                       placeholder="Michael"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1">Character Name (In-Game)</label>
+                    <label className="block text-xs text-gray-400 mb-1">Character Name (In-Game)</label>
                     <input
                       type="text"
                       value={player.characterName}
                       onChange={(e) => updatePlayer(player.id, { characterName: e.target.value })}
-                      className="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-sm text-white"
+                      className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm text-white focus:border-indigo-500 focus:outline-none transition-colors"
                       placeholder="Kermit the Barbarian"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">Aliases / Common Mispronunciations</label>
+                  <label className="block text-xs text-gray-400 mb-1">Aliases / Common Mispronunciations</label>
                   <div className="flex flex-wrap gap-1 mb-2">
                     {(player.aliases || []).map((alias, i) => (
-                      <span key={i} className="bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-slate-300 flex items-center gap-1">
+                      <span key={i} className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-300 flex items-center gap-1">
                         {alias}
-                        <button onClick={() => removeAlias(player.id, alias)} className="text-slate-500 hover:text-red-400">×</button>
+                        <button onClick={() => removeAlias(player.id, alias)} className="text-gray-500 hover:text-red-400">×</button>
                       </span>
                     ))}
                     <button
                       onClick={() => addAlias(player.id)}
-                      className="bg-slate-800 border border-dashed border-slate-600 rounded px-2 py-1 text-xs text-slate-400 hover:text-violet-400 hover:border-violet-500"
+                      className="bg-gray-900 border border-dashed border-gray-700 rounded px-2 py-1 text-xs text-gray-400 hover:text-indigo-400 hover:border-indigo-500 transition-colors"
                     >
                       + Add alias
                     </button>
@@ -338,7 +387,7 @@ const PlayerRosterModal = ({ isOpen, onClose, playerRoster, onSave }) => {
           <Button variant="ghost" onClick={addPlayer} className="w-full mt-3">+ Add Player</Button>
         </div>
 
-        <div className="p-4 border-t border-slate-700 flex justify-end gap-2">
+        <div className="p-4 border-t border-gray-800 flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
           <Button variant="primary" onClick={() => { onSave(roster); onClose(); }}>Save Roster</Button>
         </div>
@@ -356,24 +405,24 @@ const ArcModal = ({ isOpen, onClose, arc, onSave }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-lg max-h-[80vh] flex flex-col">
-        <div className="p-4 border-b border-slate-700 flex items-center justify-between">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 rounded-xl border border-gray-800 w-full max-w-lg max-h-[80vh] flex flex-col">
+        <div className="p-4 border-b border-gray-800 flex items-center justify-between">
           <h2 className="font-semibold flex items-center gap-2">{Icons.book} Campaign Arc</h2>
           <IconButton icon="close" onClick={onClose} />
         </div>
 
         <div className="flex-1 overflow-auto p-4">
-          <p className="text-xs text-slate-500 mb-3">Campaign secrets, plot threads, and DM-only context. Never revealed to players but used by AI for suggestions.</p>
+          <p className="text-xs text-gray-500 mb-3">Campaign secrets, plot threads, and DM-only context. Never revealed to players but used by AI for suggestions.</p>
           <textarea
             value={localArc}
             onChange={(e) => setLocalArc(e.target.value)}
-            className="w-full h-64 bg-slate-900 border border-slate-600 rounded-lg p-3 text-sm text-white resize-none"
+            className="w-full h-64 bg-gray-950 border border-gray-700 rounded-lg p-3 text-sm text-white resize-none focus:border-indigo-500 focus:outline-none transition-colors"
             placeholder="The BBEG is actually the king's advisor. The ancient artifact they seek is cursed..."
           />
         </div>
 
-        <div className="p-4 border-t border-slate-700 flex justify-end gap-2">
+        <div className="p-4 border-t border-gray-800 flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
           <Button variant="primary" onClick={() => { onSave(localArc); onClose(); }}>Save Arc</Button>
         </div>
@@ -382,76 +431,155 @@ const ArcModal = ({ isOpen, onClose, arc, onSave }) => {
   );
 };
 
-// Settings Modal (API Keys only)
-const SettingsModal = ({ isOpen, onClose, settings, onSaveSettings }) => {
+// Unified Tools Panel - Account, Campaign, Session tabs
+const ToolsPanel = ({ isOpen, onClose, campaign, sessions, currentSession, cards, settings, onSaveSettings, onGenerateReport }) => {
+  const [activeTab, setActiveTab] = useState('account'); // 'account', 'campaign', 'session'
+  const [activeSubTab, setActiveSubTab] = useState('artifacts'); // 'artifacts', 'settings'
   const [localSettings, setLocalSettings] = useState(settings);
+  const [report, setReport] = useState(null);
+  const [generating, setGenerating] = useState(false);
+  const [exportingTranscript, setExportingTranscript] = useState(false);
 
   useEffect(() => { setLocalSettings(settings); }, [settings, isOpen]);
+  useEffect(() => { if (!isOpen) setReport(null); }, [isOpen]);
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-lg max-h-[80vh] flex flex-col">
-        <div className="p-4 border-b border-slate-700 flex items-center justify-between">
-          <h2 className="font-semibold flex items-center gap-2">{Icons.settings} Settings</h2>
-          <IconButton icon="close" onClick={onClose} />
-        </div>
+  const campaignName = campaign?.name || 'Campaign';
+  const sessionTranscript = currentSession?.transcript || [];
 
-        <div className="flex-1 overflow-auto p-4">
-          <div className="space-y-4">
-            <p className="text-xs text-slate-500 mb-3">API keys stored locally in your browser only.</p>
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Anthropic API Key</label>
-              <input type="password" value={localSettings.anthropicKey || ''} onChange={(e) => setLocalSettings({ ...localSettings, anthropicKey: e.target.value })}
-                className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm text-white" placeholder="sk-ant-..." />
-              <p className="text-xs text-slate-500 mt-1">For AI suggestions and processing</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Deepgram API Key</label>
-              <input type="password" value={localSettings.deepgramKey || ''} onChange={(e) => setLocalSettings({ ...localSettings, deepgramKey: e.target.value })}
-                className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm text-white" placeholder="Your Deepgram key" />
-              <p className="text-xs text-slate-500 mt-1">For real-time audio transcription</p>
-            </div>
-            <div className="pt-2 border-t border-slate-700">
-              <div className="flex items-center gap-2 text-xs">
-                <span className={`w-2 h-2 rounded-full ${localSettings.anthropicKey ? 'bg-emerald-500' : 'bg-slate-600'}`} />
-                <span className="text-slate-400">Anthropic: {localSettings.anthropicKey ? 'Configured' : 'Not set'}</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs mt-1">
-                <span className={`w-2 h-2 rounded-full ${localSettings.deepgramKey ? 'bg-emerald-500' : 'bg-slate-600'}`} />
-                <span className="text-slate-400">Deepgram: {localSettings.deepgramKey ? 'Configured' : 'Not set'}</span>
-              </div>
-            </div>
-          </div>
-        </div>
+  // Get all transcripts across all sessions for campaign-level export
+  const getAllTranscripts = () => {
+    return (sessions || []).flatMap(s =>
+      (s.transcript || []).map(t => ({ ...t, sessionName: s.name || 'Session' }))
+    );
+  };
 
-        <div className="p-4 border-t border-slate-700 flex justify-end gap-2">
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" onClick={() => { onSaveSettings(localSettings); onClose(); }}>Save Settings</Button>
-        </div>
-      </div>
-    </div>
-  );
-};
+  // Client-side merge: combine consecutive same-speaker entries within time threshold
+  const mergeTranscript = (entries) => {
+    if (!entries.length) return [];
+    const merged = [];
+    let current = { ...entries[0], text: entries[0].text };
 
-// Session Report Modal
-const SessionReportModal = ({ isOpen, onClose, session, cards, settings, onGenerateReport }) => {
-  const [report, setReport] = useState(null);
-  const [generating, setGenerating] = useState(false);
+    const parseTime = (timestamp) => {
+      const match = timestamp.match(/(\d+):(\d+):(\d+)\s*(AM|PM)/i);
+      if (!match) return 0;
+      let [, hours, mins, secs, period] = match;
+      hours = parseInt(hours);
+      mins = parseInt(mins);
+      secs = parseInt(secs);
+      if (period.toUpperCase() === 'PM' && hours !== 12) hours += 12;
+      if (period.toUpperCase() === 'AM' && hours === 12) hours = 0;
+      return hours * 3600 + mins * 60 + secs;
+    };
 
-  useEffect(() => {
-    if (!isOpen) {
-      setReport(null);
+    for (let i = 1; i < entries.length; i++) {
+      const entry = entries[i];
+      const lastTextTime = parseTime(entries[i - 1].timestamp);
+      const gapFromLast = parseTime(entry.timestamp) - lastTextTime;
+      if (entry.speaker === current.speaker && gapFromLast < 5 && gapFromLast >= 0) {
+        current.text += ' ' + entry.text;
+      } else {
+        merged.push(current);
+        current = { ...entry, text: entry.text };
+      }
     }
-  }, [isOpen]);
+    merged.push(current);
+    return merged;
+  };
 
-  if (!isOpen || !session) return null;
+  // AI polish pass for clean transcript
+  const polishTranscript = async (mergedEntries, isCampaign = false) => {
+    if (!settings.anthropicKey) throw new Error('Anthropic API key required');
 
-  const generateReport = async () => {
+    const rawText = mergedEntries.map(e => {
+      const prefix = isCampaign && e.sessionName ? `[${e.sessionName}] ` : '';
+      return `${prefix}[${e.speaker}] ${e.text}`;
+    }).join('\n\n');
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': settings.anthropicKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20250514',
+        max_tokens: 8000,
+        messages: [{
+          role: 'user',
+          content: `You are cleaning up a D&D ${isCampaign ? 'campaign' : 'session'} transcript. Your job is ONLY to:
+1. Fix obvious transcription errors (e.g., "their" vs "there", run-on words)
+2. Add proper punctuation and capitalization
+3. Keep paragraphs separated by speaker
+4. Preserve EVERYTHING that was said - do not summarize, remove, or add content
+5. Keep speaker labels in [SPEAKER] format at the start of each paragraph
+${isCampaign ? '6. Keep session markers [Session Name] where they appear to separate sessions' : ''}
+
+Do NOT:
+- Add commentary or descriptions
+- Remove any dialogue, even if it seems unimportant
+- Change the meaning or tone of what was said
+- Add stage directions or narrative text
+
+Here is the raw transcript to clean up:
+
+${rawText}
+
+Return ONLY the cleaned transcript, nothing else.`
+        }]
+      })
+    });
+
+    if (!response.ok) throw new Error('Failed to polish transcript');
+    const data = await response.json();
+    return data.content[0].text;
+  };
+
+  const exportTranscript = async (scope = 'session') => {
+    const transcriptData = scope === 'campaign' ? getAllTranscripts() : sessionTranscript;
+    if (!transcriptData.length) return;
+
+    setExportingTranscript(true);
+    try {
+      const merged = mergeTranscript(transcriptData);
+      const polished = await polishTranscript(merged, scope === 'campaign');
+      const date = new Date().toLocaleDateString();
+      const sessionName = currentSession?.name || 'Session';
+
+      let markdown = scope === 'campaign'
+        ? `# ${campaignName} - Complete Campaign Transcript\n`
+        : `# ${campaignName} - ${sessionName}\n`;
+      markdown += `**Exported:** ${date}\n\n`;
+      markdown += `---\n\n`;
+      markdown += polished;
+
+      const blob = new Blob([markdown], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = scope === 'campaign'
+        ? `${campaignName.replace(/\s+/g, '_')}_full_transcript.md`
+        : `${campaignName.replace(/\s+/g, '_')}_${sessionName.replace(/\s+/g, '_')}_transcript.md`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to export transcript:', error);
+      alert('Failed to export transcript: ' + error.message);
+    } finally {
+      setExportingTranscript(false);
+    }
+  };
+
+  const generateReportHandler = async (scope = 'session') => {
     setGenerating(true);
     try {
-      const generatedReport = await onGenerateReport(session, cards);
+      // For now, session-level only; campaign report could aggregate all sessions
+      const generatedReport = await onGenerateReport(currentSession, cards);
       setReport(generatedReport);
     } catch (error) {
       console.error('Failed to generate report:', error);
@@ -462,102 +590,221 @@ const SessionReportModal = ({ isOpen, onClose, session, cards, settings, onGener
 
   const exportReport = () => {
     if (!report) return;
-    const markdown = `# ${session.name} - Session Report\n\n${report.recap ? `## Recap\n${report.recap}\n\n` : ''}${report.mvp ? `## MVP\n**${report.mvp.character}** - ${report.mvp.reason}\n\n` : ''}${report.highlights?.length ? `## Highlights\n${report.highlights.map(h => `- ${h}`).join('\n')}\n\n` : ''}${report.quotes?.length ? `## Memorable Quotes\n${report.quotes.map(q => `> "${q.text}" - ${q.character}`).join('\n\n')}\n\n` : ''}${report.events?.length ? `## Key Events\n${report.events.map(e => `- **${e.character}**: ${e.detail}`).join('\n')}\n` : ''}`;
+    const sessionName = currentSession?.name || 'Session';
+    const markdown = `# ${sessionName} - Session Report\n\n${report.recap ? `## Recap\n${report.recap}\n\n` : ''}${report.mvp ? `## MVP\n**${report.mvp.character}** - ${report.mvp.reason}\n\n` : ''}${report.highlights?.length ? `## Highlights\n${report.highlights.map(h => `- ${h}`).join('\n')}\n\n` : ''}${report.quotes?.length ? `## Memorable Quotes\n${report.quotes.map(q => `> "${q.text}" - ${q.character}`).join('\n\n')}\n\n` : ''}${report.events?.length ? `## Key Events\n${report.events.map(e => `- **${e.character}**: ${e.detail}`).join('\n')}\n` : ''}`;
 
     const blob = new Blob([markdown], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${session.name.replace(/\s+/g, '-')}-report.md`;
+    a.download = `${(currentSession?.name || 'Session').replace(/\s+/g, '-')}-report.md`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
+  const totalTranscriptEntries = getAllTranscripts().length;
+
+  // Artifacts Section Component
+  const ArtifactsSection = ({ scope }) => {
+    const isSession = scope === 'session';
+    const transcriptCount = isSession ? sessionTranscript.length : totalTranscriptEntries;
+
+    return (
+      <div className="space-y-6">
+        {/* Transcript Export */}
+        <div className="bg-gray-800/50 rounded-lg p-4">
+          <div className="flex items-center gap-3 mb-3">
+            <IconMessageCircle size={20} className="text-indigo-400" />
+            <div>
+              <h4 className="font-medium text-white">{isSession ? 'Session' : 'Campaign'} Transcript</h4>
+              <p className="text-xs text-gray-500">{transcriptCount} entries</p>
+            </div>
+          </div>
+          <p className="text-sm text-gray-400 mb-3">
+            Export a polished {isSession ? 'session' : 'full campaign'} transcript. AI merges fragments and fixes formatting while preserving everything spoken.
+          </p>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => exportTranscript(scope)}
+            disabled={exportingTranscript || !settings.anthropicKey || transcriptCount === 0}
+          >
+            {exportingTranscript ? 'Processing...' : 'Export Transcript'}
+          </Button>
+          {!settings.anthropicKey && <p className="text-xs text-amber-400 mt-2">API key required</p>}
+        </div>
+
+        {/* Report Generation */}
+        <div className="bg-gray-800/50 rounded-lg p-4">
+          <div className="flex items-center gap-3 mb-3">
+            <IconFileText size={20} className="text-emerald-400" />
+            <div>
+              <h4 className="font-medium text-white">{isSession ? 'Session' : 'Campaign'} Report</h4>
+              <p className="text-xs text-gray-500">AI-generated summary</p>
+            </div>
+          </div>
+          <p className="text-sm text-gray-400 mb-3">
+            Generate a report with highlights, MVP, memorable quotes, and key events.
+          </p>
+          {!report ? (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => generateReportHandler(scope)}
+              disabled={generating || !settings.anthropicKey}
+            >
+              {generating ? 'Generating...' : 'Generate Report'}
+            </Button>
+          ) : (
+            <div className="space-y-3">
+              {report.recap && (
+                <div className="text-sm text-gray-300 bg-gray-900 rounded p-3">
+                  <span className="text-indigo-400 font-medium">Recap:</span> {report.recap}
+                </div>
+              )}
+              {report.mvp && (
+                <div className="text-sm bg-amber-900/20 border border-amber-500/30 rounded p-3">
+                  <span className="text-amber-400 font-medium">MVP:</span> {report.mvp.character} — {report.mvp.reason}
+                </div>
+              )}
+              <Button variant="ghost" size="sm" onClick={exportReport}>Export Report</Button>
+              <Button variant="ghost" size="sm" onClick={() => setReport(null)}>Generate New</Button>
+            </div>
+          )}
+          {!settings.anthropicKey && <p className="text-xs text-amber-400 mt-2">API key required</p>}
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-2xl max-h-[80vh] flex flex-col">
-        <div className="p-4 border-b border-slate-700 flex items-center justify-between">
-          <h2 className="font-semibold flex items-center gap-2">{Icons.transcript} Session Report</h2>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 rounded-xl border border-gray-800 w-full max-w-2xl max-h-[85vh] flex flex-col">
+        <div className="p-4 border-b border-gray-800 flex items-center justify-between">
+          <h2 className="font-semibold text-white flex items-center gap-2">{Icons.settings} {campaign ? 'Tools' : 'Settings'}</h2>
           <IconButton icon="close" onClick={onClose} />
         </div>
 
+        {/* Main Tab Navigation: Account | Campaign | Session (Campaign/Session hidden when no campaign) */}
+        <div className="flex border-b border-gray-800">
+          <button
+            onClick={() => setActiveTab('account')}
+            className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === 'account' ? 'text-indigo-400 border-b-2 border-indigo-400 bg-gray-800/30' : 'text-gray-400 hover:text-gray-200'}`}
+          >
+            Account
+          </button>
+          {campaign && (
+            <>
+              <button
+                onClick={() => setActiveTab('campaign')}
+                className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === 'campaign' ? 'text-indigo-400 border-b-2 border-indigo-400 bg-gray-800/30' : 'text-gray-400 hover:text-gray-200'}`}
+              >
+                Campaign
+              </button>
+              <button
+                onClick={() => setActiveTab('session')}
+                className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === 'session' ? 'text-indigo-400 border-b-2 border-indigo-400 bg-gray-800/30' : 'text-gray-400 hover:text-gray-200'}`}
+              >
+                Session
+              </button>
+            </>
+          )}
+        </div>
+
         <div className="flex-1 overflow-auto p-4">
-          {!report ? (
-            <div className="text-center py-12">
-              <p className="text-slate-400 mb-4">Generate an AI-powered session report with highlights, MVP, and memorable moments.</p>
-              <Button variant="primary" onClick={generateReport} disabled={generating || !settings.anthropicKey}>
-                {generating ? 'Generating...' : 'Generate Report'}
-              </Button>
-              {!settings.anthropicKey && (
-                <p className="text-xs text-amber-400 mt-2">API key required</p>
-              )}
-            </div>
-          ) : (
+          {/* Account Tab */}
+          {activeTab === 'account' && (
             <div className="space-y-6">
-              {report.recap && (
-                <div>
-                  <h3 className="text-lg font-semibold text-violet-400 mb-2">Session Recap</h3>
-                  <p className="text-sm text-slate-300 leading-relaxed">{report.recap}</p>
-                </div>
-              )}
-
-              {report.mvp && (
-                <div className="bg-amber-900/20 border border-amber-500/30 rounded-lg p-4">
-                  <h3 className="text-lg font-semibold text-amber-400 mb-2">🏆 Session MVP</h3>
-                  <p className="text-sm text-amber-200"><strong>{report.mvp.character}</strong></p>
-                  <p className="text-sm text-amber-300/80 mt-1">{report.mvp.reason}</p>
-                </div>
-              )}
-
-              {report.highlights?.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-semibold text-emerald-400 mb-2">✨ Highlights</h3>
-                  <ul className="space-y-2">
-                    {report.highlights.map((h, i) => (
-                      <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
-                        <span className="text-emerald-500">•</span>
-                        <span>{h}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {report.quotes?.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-semibold text-cyan-400 mb-2">💬 Memorable Quotes</h3>
-                  <div className="space-y-3">
-                    {report.quotes.map((q, i) => (
-                      <blockquote key={i} className="border-l-2 border-cyan-500 pl-3 py-1">
-                        <p className="text-sm text-slate-300 italic">"{q.text}"</p>
-                        <p className="text-xs text-cyan-400 mt-1">— {q.character}</p>
-                      </blockquote>
-                    ))}
+              <div>
+                <h3 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
+                  <IconKey size={16} /> API Keys
+                </h3>
+                <p className="text-xs text-gray-500 mb-4">Stored locally in your browser only. Never sent to our servers.</p>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-1">Anthropic API Key</label>
+                    <input
+                      type="password"
+                      value={localSettings.anthropicKey || ''}
+                      onChange={(e) => setLocalSettings({ ...localSettings, anthropicKey: e.target.value })}
+                      className="w-full bg-gray-950 border border-gray-700 rounded px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none transition-colors"
+                      placeholder="sk-ant-..."
+                    />
+                    <p className="text-xs text-gray-500 mt-1">For AI suggestions, reports, and transcript processing</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-1">Deepgram API Key</label>
+                    <input
+                      type="password"
+                      value={localSettings.deepgramKey || ''}
+                      onChange={(e) => setLocalSettings({ ...localSettings, deepgramKey: e.target.value })}
+                      className="w-full bg-gray-950 border border-gray-700 rounded px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none transition-colors"
+                      placeholder="Your Deepgram key"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">For real-time voice transcription</p>
                   </div>
                 </div>
-              )}
-
-              {report.events?.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-semibold text-violet-400 mb-2">📌 Key Events</h3>
-                  <ul className="space-y-2">
-                    {report.events.map((e, i) => (
-                      <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
-                        <span className="text-violet-500">•</span>
-                        <span><strong>{e.character}:</strong> {e.detail}</span>
-                      </li>
-                    ))}
-                  </ul>
+                <div className="mt-4 pt-4 border-t border-gray-800">
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className={`w-2 h-2 rounded-full ${localSettings.anthropicKey ? 'bg-emerald-500' : 'bg-gray-600'}`} />
+                    <span className="text-gray-400">Anthropic: {localSettings.anthropicKey ? 'Configured' : 'Not set'}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs mt-1">
+                    <span className={`w-2 h-2 rounded-full ${localSettings.deepgramKey ? 'bg-emerald-500' : 'bg-gray-600'}`} />
+                    <span className="text-gray-400">Deepgram: {localSettings.deepgramKey ? 'Configured' : 'Not set'}</span>
+                  </div>
                 </div>
-              )}
+              </div>
+
+              <div className="pt-4 border-t border-gray-800">
+                <h3 className="text-sm font-medium text-gray-300 mb-3">Preferences</h3>
+                <p className="text-xs text-gray-500 italic">Coming soon: theme, defaults, data management</p>
+              </div>
+            </div>
+          )}
+
+          {/* Campaign Tab */}
+          {activeTab === 'campaign' && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 mb-4 pb-4 border-b border-gray-800">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-600 to-indigo-800 flex items-center justify-center text-white font-bold">
+                  {campaignName.charAt(0)}
+                </div>
+                <div>
+                  <h3 className="font-medium text-white">{campaignName}</h3>
+                  <p className="text-xs text-gray-500">{sessions?.length || 0} sessions • {cards?.length || 0} cards</p>
+                </div>
+              </div>
+
+              <h4 className="text-xs text-gray-500 uppercase tracking-wide mb-3">Campaign Artifacts</h4>
+              <ArtifactsSection scope="campaign" />
+            </div>
+          )}
+
+          {/* Session Tab */}
+          {activeTab === 'session' && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 mb-4 pb-4 border-b border-gray-800">
+                <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center text-gray-400">
+                  <IconCalendar size={20} />
+                </div>
+                <div>
+                  <h3 className="font-medium text-white">{currentSession?.name || 'Current Session'}</h3>
+                  <p className="text-xs text-gray-500">{sessionTranscript.length} transcript entries</p>
+                </div>
+              </div>
+
+              <h4 className="text-xs text-gray-500 uppercase tracking-wide mb-3">Session Artifacts</h4>
+              <ArtifactsSection scope="session" />
             </div>
           )}
         </div>
 
-        {report && (
-          <div className="p-4 border-t border-slate-700 flex justify-end gap-2">
-            <Button variant="ghost" onClick={onClose}>Close</Button>
-            <Button variant="primary" onClick={exportReport}>Export Markdown</Button>
+        {/* Footer with Save (for Account tab) */}
+        {activeTab === 'account' && (
+          <div className="p-4 border-t border-gray-800 flex justify-end gap-2">
+            <Button variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button variant="primary" onClick={() => { onSaveSettings(localSettings); onClose(); }}>Save Settings</Button>
           </div>
         )}
       </div>
@@ -570,21 +817,48 @@ const CampaignCard = ({ campaign, onClick, onDelete }) => {
   const [showConfirm, setShowConfirm] = useState(false);
   const chars = campaign.cards?.filter(c => c.type === 'CHARACTER').length || 0;
   const locs = campaign.cards?.filter(c => c.type === 'LOCATION').length || 0;
+  const plots = campaign.cards?.filter(c => c.type === 'PLOT').length || 0;
+  const initial = campaign.name?.charAt(0)?.toUpperCase() || '?';
 
   return (
     <>
-      <div onClick={onClick} className="bg-slate-800/50 hover:bg-slate-800 border border-slate-700 hover:border-slate-600 rounded-xl p-5 cursor-pointer transition-all group relative">
+      <div onClick={onClick} className="bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-gray-700 rounded-xl p-5 cursor-pointer transition-all group relative">
         <button onClick={(e) => { e.stopPropagation(); setShowConfirm(true); }}
-          className="absolute top-3 right-3 p-1.5 rounded opacity-0 group-hover:opacity-100 hover:bg-red-900/50 text-slate-500 hover:text-red-400 transition-all">
+          className="absolute top-3 right-3 p-1.5 rounded opacity-0 group-hover:opacity-100 hover:bg-red-900/50 text-gray-500 hover:text-red-400 transition-all">
           {Icons.delete}
         </button>
-        <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-violet-600 to-cyan-600 flex items-center justify-center mb-4 text-white">{Icons.dice}</div>
-        <h3 className="font-semibold text-white text-lg mb-1">{campaign.name}</h3>
-        <div className="flex gap-3 text-xs text-slate-500 mb-3">
-          <span>{chars} characters</span>
-          <span>{locs} locations</span>
+
+        {/* Badge */}
+        <div className="absolute top-4 right-12 opacity-0 group-hover:opacity-100 transition-opacity">
+          <span className="text-[10px] text-gray-500 font-mono bg-gray-800 px-2 py-0.5 rounded">D&D 5.5e</span>
         </div>
-        <p className="text-xs text-slate-600">Updated {new Date(campaign.updatedAt).toLocaleDateString()}</p>
+
+        {/* Initial Avatar */}
+        <div className="flex items-start gap-4 mb-4">
+          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-indigo-600 to-indigo-800 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+            {initial}
+          </div>
+          <div className="flex-1 min-w-0 pt-1">
+            <h3 className="font-semibold text-white text-lg truncate">{campaign.name}</h3>
+            <p className="text-xs text-gray-500">Last played: {new Date(campaign.updatedAt).toLocaleDateString()}</p>
+          </div>
+        </div>
+
+        {/* Stats Row */}
+        <div className="flex items-center gap-4 pt-3 border-t border-gray-800">
+          <div className="text-center">
+            <div className="text-lg font-semibold text-white">{chars}</div>
+            <div className="text-[10px] text-gray-500 uppercase">Chars</div>
+          </div>
+          <div className="text-center">
+            <div className="text-lg font-semibold text-white">{locs}</div>
+            <div className="text-[10px] text-gray-500 uppercase">Locs</div>
+          </div>
+          <div className="text-center">
+            <div className="text-lg font-semibold text-white">{plots}</div>
+            <div className="text-[10px] text-gray-500 uppercase">Threads</div>
+          </div>
+        </div>
       </div>
       <ConfirmModal isOpen={showConfirm} title="Delete Campaign?" message={`Delete "${campaign.name}"? This cannot be undone.`}
         onConfirm={() => { onDelete(campaign.id); setShowConfirm(false); }} onCancel={() => setShowConfirm(false)} />
@@ -598,25 +872,25 @@ const CampaignsHome = ({ campaigns, onSelect, onCreate, onDelete, settings, onOp
   const [newName, setNewName] = useState('');
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-      <header className="border-b border-slate-800 px-6 py-4">
+    <div className="min-h-screen bg-gray-950">
+      <header className="bg-gray-950/80 backdrop-blur-md border-b border-gray-800 px-6 py-4 sticky top-0 z-10">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <h1 className="text-xl font-bold bg-gradient-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent">DM HUD</h1>
-          <button onClick={onOpenSettings} className="flex items-center gap-2 text-sm text-slate-400 hover:text-white">{Icons.settings} Settings</button>
+          <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-400 to-emerald-400 bg-clip-text text-transparent">DM HUD</h1>
+          <button onClick={onOpenSettings} className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors">{Icons.settings} Settings</button>
         </div>
       </header>
 
       <div className="max-w-5xl mx-auto px-6 py-8">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-slate-200">Your Campaigns</h2>
+          <h2 className="text-lg font-semibold text-gray-200">Your Campaigns</h2>
           <Button variant="primary" onClick={() => setShowNew(true)} className="flex items-center gap-2">{Icons.plus} New Campaign</Button>
         </div>
 
         {campaigns.length === 0 ? (
           <div className="text-center py-16">
-            <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mx-auto mb-4 text-slate-600">{Icons.dice}</div>
-            <h3 className="text-lg font-medium text-slate-300 mb-2">No campaigns yet</h3>
-            <p className="text-sm text-slate-500 mb-4">Create your first campaign to get started</p>
+            <div className="w-16 h-16 rounded-full bg-gray-900 flex items-center justify-center mx-auto mb-4 text-gray-600">{Icons.dice}</div>
+            <h3 className="text-lg font-medium text-gray-300 mb-2">No campaigns yet</h3>
+            <p className="text-sm text-gray-500 mb-4">Create your first campaign to get started</p>
             <Button variant="primary" onClick={() => setShowNew(true)}>Create Campaign</Button>
           </div>
         ) : (
@@ -640,12 +914,12 @@ const CampaignsHome = ({ campaigns, onSelect, onCreate, onDelete, settings, onOp
       </div>
 
       {showNew && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-md p-6">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 rounded-xl border border-gray-800 w-full max-w-md p-6">
             <h3 className="font-semibold text-lg mb-4">New Campaign</h3>
             <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && newName.trim() && (onCreate(newName.trim()), setNewName(''), setShowNew(false))}
-              className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white mb-4" placeholder="Campaign name..." autoFocus />
+              className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white mb-4 focus:border-indigo-500 focus:outline-none transition-colors" placeholder="Campaign name..." autoFocus />
             <div className="flex gap-2 justify-end">
               <Button variant="ghost" onClick={() => setShowNew(false)}>Cancel</Button>
               <Button variant="primary" onClick={() => { if (newName.trim()) { onCreate(newName.trim()); setNewName(''); setShowNew(false); } }} disabled={!newName.trim()}>Create</Button>
@@ -663,7 +937,7 @@ const CompactCard = ({ card, onClick, onQuickHP, onDelete, isInCombat, onReorder
   const [isDragging, setIsDragging] = useState(false);
   const cardType = CARD_TYPES[card.type] || CARD_TYPES.CHARACTER;
   const hasRiffs = Object.keys(card.riffs || {}).length > 0;
-  const colorClass = { violet: 'text-violet-400', cyan: 'text-cyan-400', amber: 'text-amber-400', pink: 'text-pink-400', red: 'text-red-400' }[cardType.color] || 'text-slate-400';
+  const colorClass = { indigo: 'text-indigo-400', emerald: 'text-emerald-400', amber: 'text-amber-400', pink: 'text-pink-400', red: 'text-red-400' }[cardType.color] || 'text-gray-400';
 
   const handleDragStart = (e) => {
     setIsDragging(true);
@@ -697,16 +971,27 @@ const CompactCard = ({ card, onClick, onQuickHP, onDelete, isInCombat, onReorder
         onDragOver={handleDragOver}
         onDrop={handleDrop}
         onClick={onClick}
-        className={`relative rounded-lg p-2.5 cursor-move transition-all group ${card.isCanon ? 'bg-slate-800/90 border border-slate-600/50 hover:border-slate-500' : 'bg-slate-800/50 border-2 border-dashed border-amber-500/40'} ${card.hp?.current === 0 ? 'opacity-50' : ''} ${isDragging ? 'opacity-40' : ''}`}>
+        className={`relative rounded-lg p-2.5 cursor-move transition-all group ${card.isCanon ? 'bg-gray-900/50 border border-transparent hover:bg-gray-800 hover:border-gray-700' : 'bg-gray-900/30 border-2 border-dashed border-amber-500/40 hover:border-amber-500/60'} ${card.hp?.current === 0 ? 'opacity-50' : ''} ${isDragging ? 'opacity-40' : ''}`}>
         {!card.isPC && (
           <button onClick={(e) => { e.stopPropagation(); setShowConfirm(true); }}
-            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-slate-700 border border-slate-600 text-slate-400 text-xs opacity-0 group-hover:opacity-100 hover:bg-red-600 hover:text-white flex items-center justify-center z-10">
-            {Icons.close}
+            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-gray-800 border border-gray-700 text-gray-400 text-xs opacity-0 group-hover:opacity-100 hover:bg-red-600 hover:border-red-600 hover:text-white flex items-center justify-center z-10 transition-all">
+            <IconX size={12} />
           </button>
         )}
         <div className="flex items-center gap-2">
           <span className={colorClass}>{Icons[cardType.icon]}</span>
-          <span className="font-medium text-white text-sm truncate flex-1">{card.name}</span>
+          <span className="font-medium text-gray-200 text-sm truncate flex-1">{card.name}</span>
+          {/* Inline HP/AC display for characters */}
+          {(card.type === 'CHARACTER' || card.type === 'ENEMY') && (card.hp || card.ac) && (
+            <div className="flex items-center gap-1.5 text-[10px] text-gray-500 font-mono">
+              {card.hp && (
+                <span className={card.hp.current / card.hp.max > 0.5 ? 'text-emerald-400' : card.hp.current / card.hp.max > 0.25 ? 'text-amber-400' : 'text-red-400'}>
+                  HP {card.hp.current}/{card.hp.max}
+                </span>
+              )}
+              {card.ac && <span>AC {card.ac}</span>}
+            </div>
+          )}
           <div className="flex items-center gap-1 flex-shrink-0">
             {card.isPC && <Badge variant="pc" size="sm">PC</Badge>}
             {card.type === 'CHARACTER' && card.inParty && <Badge variant="status" size="sm">Party</Badge>}
@@ -721,20 +1006,20 @@ const CompactCard = ({ card, onClick, onQuickHP, onDelete, isInCombat, onReorder
         )}
         {card.hp && (
           <div className="mt-2 flex items-center gap-2 ml-5">
-            <div className="flex-1 h-1.5 bg-slate-900 rounded-full overflow-hidden">
+            <div className="flex-1 h-1.5 bg-gray-950 rounded-full overflow-hidden">
               <div className={`h-full transition-all ${card.hp.current / card.hp.max > 0.5 ? 'bg-emerald-500' : card.hp.current / card.hp.max > 0.25 ? 'bg-amber-500' : 'bg-red-500'}`}
                 style={{ width: `${(card.hp.current / card.hp.max) * 100}%` }} />
             </div>
-            <span className="text-[10px] text-slate-400 font-mono w-12 text-right">{card.hp.current}/{card.hp.max}</span>
+            <span className="text-[10px] text-gray-500 font-mono w-12 text-right">{card.hp.current}/{card.hp.max}</span>
             {isInCombat && (
               <div className="flex gap-0.5" onClick={e => e.stopPropagation()}>
-                <button onClick={() => onQuickHP(card.id, -1)} className="w-5 h-5 rounded bg-red-900/50 hover:bg-red-800 text-red-300 text-xs">−</button>
-                <button onClick={() => onQuickHP(card.id, 1)} className="w-5 h-5 rounded bg-emerald-900/50 hover:bg-emerald-800 text-emerald-300 text-xs">+</button>
+                <button onClick={() => onQuickHP(card.id, -1)} className="w-5 h-5 rounded bg-red-900/50 hover:bg-red-800 text-red-300 text-xs transition-colors">−</button>
+                <button onClick={() => onQuickHP(card.id, 1)} className="w-5 h-5 rounded bg-emerald-900/50 hover:bg-emerald-800 text-emerald-300 text-xs transition-colors">+</button>
               </div>
             )}
           </div>
         )}
-        {card.notes && !card.hp && <div className="mt-1 ml-5 text-[10px] text-slate-500 truncate">{card.notes}</div>}
+        {card.notes && !card.hp && <div className="mt-1 ml-5 text-[10px] text-gray-500 truncate">{card.notes}</div>}
       </div>
       <ConfirmModal isOpen={showConfirm} title="Delete?" message={`Delete "${card.name}"?`}
         onConfirm={() => { onDelete(card.id); setShowConfirm(false); }} onCancel={() => setShowConfirm(false)} />
@@ -747,11 +1032,32 @@ const DetailDrawer = ({ card, isOpen, onClose, onUpdate, onDelete, onGenerateRif
   const [activeTab, setActiveTab] = useState('canon');
   const [editField, setEditField] = useState(null);
   const [editValue, setEditValue] = useState('');
+  const [showStats, setShowStats] = useState(false);
+
+  // Check if card has any stats set
+  const hasStats = card && (
+    (card.stats && Object.values(card.stats).some(v => v !== 10 && v !== undefined)) ||
+    card.ac || card.level || card.class
+  );
+
+  // Auto-expand stats if they exist or are added via AI
+  useEffect(() => {
+    if (hasStats) setShowStats(true);
+  }, [hasStats]);
+
+  // Reset showStats when switching cards
+  useEffect(() => {
+    if (card) {
+      const cardHasStats = (card.stats && Object.values(card.stats).some(v => v !== 10 && v !== undefined)) ||
+                          card.ac || card.level || card.class;
+      setShowStats(cardHasStats);
+    }
+  }, [card?.id]);
 
   if (!isOpen || !card) return null;
   const cardType = CARD_TYPES[card.type] || CARD_TYPES.CHARACTER;
   const templates = RIFF_TEMPLATES[card.type] || [];
-  const colorClass = { violet: 'bg-violet-900/50 text-violet-400', cyan: 'bg-cyan-900/50 text-cyan-400', amber: 'bg-amber-900/50 text-amber-400', pink: 'bg-pink-900/50 text-pink-400', red: 'bg-red-900/50 text-red-400' }[cardType.color];
+  const colorClass = { indigo: 'bg-indigo-900/50 text-indigo-400', emerald: 'bg-emerald-900/50 text-emerald-400', amber: 'bg-amber-900/50 text-amber-400', pink: 'bg-pink-900/50 text-pink-400', red: 'bg-red-900/50 text-red-400' }[cardType.color];
 
   const saveEdit = (field) => {
     if (field === 'name') onUpdate(card.id, { name: editValue });
@@ -760,83 +1066,109 @@ const DetailDrawer = ({ card, isOpen, onClose, onUpdate, onDelete, onGenerateRif
     setEditField(null); setEditValue('');
   };
 
+  // Get health status for characters/enemies
+  const getHealthStatus = () => {
+    if (!card.hp) return null;
+    const ratio = card.hp.current / card.hp.max;
+    if (ratio <= 0) return { label: 'Dead', color: 'bg-gray-600 text-gray-300' };
+    if (ratio <= 0.25) return { label: 'Critical', color: 'bg-red-600 text-white' };
+    if (ratio <= 0.5) return { label: 'Bloodied', color: 'bg-amber-600 text-white' };
+    return { label: 'Healthy', color: 'bg-emerald-600 text-white' };
+  };
+  const healthStatus = getHealthStatus();
+
   return (
     <>
-      <div className="fixed inset-0 bg-black/60 z-40" onClick={onClose} />
-      <div className="fixed right-0 top-0 bottom-0 w-[400px] bg-slate-900 border-l border-slate-700 z-50 flex flex-col">
-        <div className="p-4 border-b border-slate-700 flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <span className={`w-10 h-10 rounded-lg flex items-center justify-center ${colorClass}`}>
-              <span className="scale-150">{Icons[cardType.icon]}</span>
-            </span>
-            <div>
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40" onClick={onClose} />
+      <div className="fixed right-0 top-0 bottom-0 w-[420px] bg-gray-900 border-l border-gray-800 z-50 flex flex-col transform transition-transform duration-300">
+        {/* Hero Header with Image Area */}
+        <div className="relative">
+          {/* Image/Gradient Background */}
+          <div
+            className="h-40 bg-gradient-to-br from-gray-800 via-gray-900 to-gray-950 relative overflow-hidden"
+            style={card.image ? { backgroundImage: `url(${card.image})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
+          >
+            {/* Gradient overlay for text readability */}
+            <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/60 to-transparent" />
+
+            {/* Type icon badge - top left */}
+            <div className={`absolute top-3 left-3 w-10 h-10 rounded-lg flex items-center justify-center ${colorClass} shadow-lg`}>
+              <span className="scale-125">{Icons[cardType.icon]}</span>
+            </div>
+
+            {/* Close button - top right */}
+            <button
+              onClick={onClose}
+              className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 flex items-center justify-center text-white/80 hover:text-white transition-colors"
+            >
+              <IconX size={18} />
+            </button>
+
+            {/* Status badges - positioned over image */}
+            <div className="absolute bottom-12 left-4 flex flex-wrap gap-1.5">
+              {healthStatus && (
+                <span className={`px-2 py-0.5 rounded text-xs font-medium ${healthStatus.color}`}>
+                  {healthStatus.label}
+                </span>
+              )}
+              <span className={`px-2 py-0.5 rounded text-xs font-medium ${card.isCanon ? 'bg-emerald-600 text-white' : 'bg-amber-600 text-white'}`}>
+                {card.isCanon ? 'Canon' : 'Riff'}
+              </span>
+              {card.type === 'CHARACTER' && (
+                <>
+                  <button
+                    onClick={() => onUpdate(card.id, { isPC: !card.isPC })}
+                    className="transition-opacity hover:opacity-80"
+                    title="Toggle PC/NPC"
+                  >
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${card.isPC ? 'bg-indigo-600 text-white' : 'bg-gray-600 text-gray-200'}`}>
+                      {card.isPC ? 'PC' : 'NPC'}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => onUpdate(card.id, { inParty: !card.inParty })}
+                    className="transition-opacity hover:opacity-80"
+                    title="Toggle Party Member"
+                  >
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${card.inParty ? 'bg-indigo-600 text-white' : 'bg-gray-600 text-gray-200'}`}>
+                      {card.inParty ? 'Party' : 'Solo'}
+                    </span>
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Name - at bottom of hero */}
+            <div className="absolute bottom-3 left-4 right-4">
               {editField === 'name' ? (
                 <div className="flex gap-2">
                   <input value={editValue} onChange={e => setEditValue(e.target.value)}
-                    className="bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white font-semibold w-40"
+                    className="bg-gray-950/80 backdrop-blur border border-gray-700 rounded px-2 py-1 text-white font-semibold text-lg flex-1 focus:border-indigo-500 focus:outline-none"
                     autoFocus onKeyDown={e => e.key === 'Enter' && saveEdit('name')} />
                   <Button size="sm" variant="primary" onClick={() => saveEdit('name')}>Save</Button>
                 </div>
               ) : (
-                <h2 className="text-lg font-semibold text-white cursor-pointer hover:text-violet-300"
+                <h2 className="text-xl font-bold text-white cursor-pointer hover:text-indigo-300 drop-shadow-lg"
                   onClick={() => { setEditField('name'); setEditValue(card.name); }}>{card.name}</h2>
               )}
-              <div className="flex items-center gap-2 mt-1">
-                <Badge variant={card.isCanon ? 'canon' : 'riff'}>{card.isCanon ? 'Canon' : 'Riff'}</Badge>
-                {card.type === 'CHARACTER' && (
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => onUpdate(card.id, { isPC: !card.isPC })}
-                      className="transition-opacity hover:opacity-80"
-                      title="Toggle PC/NPC"
-                    >
-                      <Badge variant={card.isPC ? 'pc' : 'default'}>
-                        {card.isPC ? 'PC' : 'NPC'}
-                      </Badge>
-                    </button>
-                    <button
-                      onClick={() => onUpdate(card.id, { inParty: !card.inParty })}
-                      className="transition-opacity hover:opacity-80"
-                      title="Toggle Party Member"
-                    >
-                      <Badge variant={card.inParty ? 'status' : 'default'}>
-                        {card.inParty ? 'Party' : 'Solo'}
-                      </Badge>
-                    </button>
-                  </div>
-                )}
-              </div>
             </div>
           </div>
-          <IconButton icon="close" onClick={onClose} />
+
+          {/* Notes/Description - below hero */}
+          {card.notes && (
+            <div className="px-4 py-2 text-sm text-gray-400 border-b border-gray-800 bg-gray-900/50">
+              {card.notes}
+            </div>
+          )}
         </div>
 
+        {/* HP Section - Characters and Enemies */}
         {(card.hp || card.type === 'CHARACTER' || card.type === 'ENEMY') && (
-          <div className="p-4 border-b border-slate-700 bg-slate-800/50">
+          <div className="px-4 py-3 border-b border-gray-800">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-slate-400">HP</span>
+              <span className="text-xs text-gray-500 uppercase tracking-wide">Hit Points</span>
               {card.hp ? (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    value={card.hp.current}
-                    onChange={(e) => {
-                      const newCurrent = parseInt(e.target.value) || 0;
-                      onUpdate(card.id, { hp: { ...card.hp, current: Math.max(0, Math.min(card.hp.max, newCurrent)) } });
-                    }}
-                    className="w-12 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white text-center text-sm font-mono"
-                  />
-                  <span className="text-slate-400">/</span>
-                  <input
-                    type="number"
-                    value={card.hp.max}
-                    onChange={(e) => {
-                      const newMax = parseInt(e.target.value) || 1;
-                      onUpdate(card.id, { hp: { current: Math.min(card.hp.current, newMax), max: newMax } });
-                    }}
-                    className="w-12 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white text-center text-sm font-mono"
-                  />
-                </div>
+                <span className="text-sm text-gray-300 font-mono">{card.hp.current} / {card.hp.max}</span>
               ) : (
                 <Button size="xs" variant="primary" onClick={() => {
                   onUpdate(card.id, { hp: { current: 10, max: 10 } });
@@ -846,79 +1178,130 @@ const DetailDrawer = ({ card, isOpen, onClose, onUpdate, onDelete, onGenerateRif
               )}
             </div>
             {card.hp && (
-              <div className="h-3 bg-slate-900 rounded-full overflow-hidden">
-                <div className={`h-full ${card.hp.current / card.hp.max > 0.5 ? 'bg-emerald-500' : card.hp.current / card.hp.max > 0.25 ? 'bg-amber-500' : 'bg-red-500'}`}
-                  style={{ width: `${(card.hp.current / card.hp.max) * 100}%` }} />
-              </div>
+              <>
+                <div className="h-2 bg-gray-800 rounded-full overflow-hidden mb-2">
+                  <div className={`h-full transition-all ${card.hp.current / card.hp.max > 0.5 ? 'bg-emerald-500' : card.hp.current / card.hp.max > 0.25 ? 'bg-amber-500' : 'bg-red-500'}`}
+                    style={{ width: `${(card.hp.current / card.hp.max) * 100}%` }} />
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={card.hp.current}
+                    onChange={(e) => {
+                      const newCurrent = parseInt(e.target.value) || 0;
+                      onUpdate(card.id, { hp: { ...card.hp, current: Math.max(0, Math.min(card.hp.max, newCurrent)) } });
+                    }}
+                    className="w-16 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-center text-sm font-mono focus:border-indigo-500 focus:outline-none"
+                  />
+                  <span className="text-gray-500">/</span>
+                  <input
+                    type="number"
+                    value={card.hp.max}
+                    onChange={(e) => {
+                      const newMax = parseInt(e.target.value) || 1;
+                      onUpdate(card.id, { hp: { current: Math.min(card.hp.current, newMax), max: newMax } });
+                    }}
+                    className="w-16 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-center text-sm font-mono focus:border-indigo-500 focus:outline-none"
+                  />
+                </div>
+              </>
             )}
           </div>
         )}
 
         {/* D&D 5.5e Stats Section - only for CHARACTERs and ENEMYs */}
         {(card.type === 'CHARACTER' || card.type === 'ENEMY') && (
-          <div className="p-4 border-b border-slate-700 bg-slate-800/50">
-            <div className="text-xs text-slate-400 uppercase mb-2">Stats</div>
-            <div className="grid grid-cols-3 gap-2 mb-3">
-              {['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'].map(stat => {
-                const value = card.stats?.[stat] || 10;
-                const modifier = Math.floor((value - 10) / 2);
-                return (
-                  <div key={stat} className="bg-slate-900 rounded p-2 text-center">
-                    <div className="text-[10px] text-slate-500 uppercase">{stat}</div>
-                    <input
-                      type="number"
-                      value={value}
-                      onChange={(e) => {
-                        const newVal = parseInt(e.target.value) || 10;
-                        onUpdate(card.id, { stats: { ...(card.stats || {}), [stat]: newVal } });
-                      }}
-                      className="w-full bg-transparent text-white text-center text-sm font-semibold mb-1 focus:outline-none focus:ring-1 focus:ring-violet-500 rounded"
-                    />
-                    <div className="text-[10px] text-slate-400">
-                      {modifier >= 0 ? '+' : ''}{modifier}
+          <div className="px-4 py-3 border-b border-gray-800">
+            {!showStats && !hasStats ? (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500 uppercase tracking-wide">Stats</span>
+                <Button size="xs" variant="primary" onClick={() => setShowStats(true)}>
+                  Add Stats
+                </Button>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs text-gray-500 uppercase tracking-wide">Ability Scores</span>
+                  <button
+                    onClick={() => setShowStats(!showStats)}
+                    className="text-[10px] text-gray-500 hover:text-gray-300 transition-colors"
+                  >
+                    {showStats ? 'Hide ▲' : 'Show ▼'}
+                  </button>
+                </div>
+                {showStats && (
+                  <>
+                    {/* 6-column stat grid like the inspiration */}
+                    <div className="grid grid-cols-6 gap-1.5 mb-3">
+                      {['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'].map(stat => {
+                        const value = card.stats?.[stat] || 10;
+                        const modifier = Math.floor((value - 10) / 2);
+                        return (
+                          <div key={stat} className="bg-gray-800 border border-gray-700 rounded-lg p-2 text-center">
+                            <div className="text-[9px] text-gray-500 uppercase mb-1">{stat}</div>
+                            <input
+                              type="number"
+                              value={value}
+                              onChange={(e) => {
+                                const newVal = parseInt(e.target.value) || 10;
+                                onUpdate(card.id, { stats: { ...(card.stats || {}), [stat]: newVal } });
+                              }}
+                              className="w-full bg-transparent text-white text-center text-lg font-bold focus:outline-none"
+                            />
+                            <div className="text-[10px] text-gray-400">
+                              {modifier >= 0 ? '+' : ''}{modifier}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="grid grid-cols-3 gap-2 text-xs">
-              <div>
-                <label className="text-slate-500 block mb-1">AC</label>
-                <input
-                  type="number"
-                  value={card.ac || ''}
-                  onChange={(e) => onUpdate(card.id, { ac: parseInt(e.target.value) || null })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white text-center"
-                  placeholder="-"
-                />
-              </div>
-              <div>
-                <label className="text-slate-500 block mb-1">Level</label>
-                <input
-                  type="number"
-                  value={card.level || ''}
-                  onChange={(e) => onUpdate(card.id, { level: parseInt(e.target.value) || null })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white text-center"
-                  placeholder="-"
-                />
-              </div>
-              <div>
-                <label className="text-slate-500 block mb-1">Class</label>
-                <input
-                  type="text"
-                  value={card.class || ''}
-                  onChange={(e) => onUpdate(card.id, { class: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white text-center text-xs"
-                  placeholder="-"
-                />
-              </div>
-            </div>
+                    {/* AC, Level, Class row */}
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="bg-gray-800 border border-gray-700 rounded-lg p-2 text-center">
+                        <div className="text-[9px] text-gray-500 uppercase mb-1">AC</div>
+                        <div className="flex items-center justify-center gap-1">
+                          <IconShield size={14} className="text-gray-500" />
+                          <input
+                            type="number"
+                            value={card.ac || ''}
+                            onChange={(e) => onUpdate(card.id, { ac: parseInt(e.target.value) || null })}
+                            className="w-10 bg-transparent text-white text-center text-lg font-bold focus:outline-none"
+                            placeholder="-"
+                          />
+                        </div>
+                      </div>
+                      <div className="bg-gray-800 border border-gray-700 rounded-lg p-2 text-center">
+                        <div className="text-[9px] text-gray-500 uppercase mb-1">Level</div>
+                        <input
+                          type="number"
+                          value={card.level || ''}
+                          onChange={(e) => onUpdate(card.id, { level: parseInt(e.target.value) || null })}
+                          className="w-full bg-transparent text-white text-center text-lg font-bold focus:outline-none"
+                          placeholder="-"
+                        />
+                      </div>
+                      <div className="bg-gray-800 border border-gray-700 rounded-lg p-2 text-center">
+                        <div className="text-[9px] text-gray-500 uppercase mb-1">Class</div>
+                        <input
+                          type="text"
+                          value={card.class || ''}
+                          onChange={(e) => onUpdate(card.id, { class: e.target.value })}
+                          className="w-full bg-transparent text-white text-center text-sm font-semibold focus:outline-none truncate"
+                          placeholder="-"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
           </div>
         )}
 
-        <div className="flex border-b border-slate-700">
-          <button onClick={() => setActiveTab('canon')} className={`flex-1 px-4 py-2 text-sm font-medium ${activeTab === 'canon' ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-slate-400'}`}>Canon</button>
-          <button onClick={() => setActiveTab('riffs')} className={`flex-1 px-4 py-2 text-sm font-medium ${activeTab === 'riffs' ? 'text-amber-400 border-b-2 border-amber-400' : 'text-slate-400'}`}>
+        <div className="flex border-b border-gray-800">
+          <button onClick={() => setActiveTab('canon')} className={`flex-1 px-4 py-2 text-sm font-medium ${activeTab === 'canon' ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-gray-400'}`}>Canon</button>
+          <button onClick={() => setActiveTab('riffs')} className={`flex-1 px-4 py-2 text-sm font-medium ${activeTab === 'riffs' ? 'text-amber-400 border-b-2 border-amber-400' : 'text-gray-400'}`}>
             Riffs {Object.keys(card.riffs || {}).length > 0 && <span className="ml-1 px-1.5 text-[10px] bg-amber-500 text-black rounded-full">{Object.keys(card.riffs || {}).length}</span>}
           </button>
         </div>
@@ -927,49 +1310,49 @@ const DetailDrawer = ({ card, isOpen, onClose, onUpdate, onDelete, onGenerateRif
           {activeTab === 'canon' ? (
             <div className="space-y-3">
               {card.genesis && (
-                <div className="bg-violet-900/20 border border-violet-500/30 rounded-lg p-3">
-                  <div className="text-xs text-violet-400 uppercase mb-1 flex items-center gap-1">
+                <div className="bg-indigo-900/20 border border-indigo-500/30 rounded-lg p-3">
+                  <div className="text-xs text-indigo-400 uppercase mb-1 flex items-center gap-1">
                     {Icons.transcript} Genesis
                   </div>
-                  <p className="text-xs text-violet-200/80 italic leading-relaxed">"{card.genesis}"</p>
+                  <p className="text-xs text-indigo-200/80 italic leading-relaxed">"{card.genesis}"</p>
                   {card.createdAt && (
-                    <p className="text-[10px] text-violet-400/60 mt-1">
+                    <p className="text-[10px] text-indigo-400/60 mt-1">
                       {new Date(card.createdAt).toLocaleString()}
                     </p>
                   )}
                 </div>
               )}
-              <div className="bg-slate-800/50 rounded-lg p-3">
-                <div className="text-xs text-slate-500 uppercase mb-1">Notes</div>
+              <div className="bg-gray-800/50 rounded-lg p-3">
+                <div className="text-xs text-gray-500 uppercase mb-1">Notes</div>
                 {editField === 'notes' ? (
                   <div className="space-y-2">
                     <textarea value={editValue} onChange={e => setEditValue(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white text-sm h-20 resize-none" autoFocus />
+                      className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-white text-sm h-20 resize-none" autoFocus />
                     <div className="flex gap-2">
                       <Button size="sm" variant="primary" onClick={() => saveEdit('notes')}>Save</Button>
                       <Button size="sm" variant="ghost" onClick={() => setEditField(null)}>Cancel</Button>
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-slate-300 cursor-pointer hover:text-white" onClick={() => { setEditField('notes'); setEditValue(card.notes || ''); }}>
-                    {card.notes || <span className="italic text-slate-500">Click to add...</span>}
+                  <p className="text-sm text-gray-300 cursor-pointer hover:text-white" onClick={() => { setEditField('notes'); setEditValue(card.notes || ''); }}>
+                    {card.notes || <span className="italic text-gray-500">Click to add...</span>}
                   </p>
                 )}
               </div>
               <div>
-                <div className="text-xs text-slate-500 uppercase mb-2">Facts</div>
+                <div className="text-xs text-gray-500 uppercase mb-2">Facts</div>
                 <div className="space-y-2">
                   {(card.canonFacts || []).map((f, i) => (
                     <div key={i} className="flex items-start gap-2 bg-emerald-900/20 border border-emerald-500/30 rounded-lg p-2">
                       <span className="text-emerald-400">{Icons.check}</span>
-                      <span className="text-sm text-slate-200 flex-1">{f}</span>
-                      <button onClick={() => onUpdate(card.id, { canonFacts: card.canonFacts.filter((_, j) => j !== i) })} className="text-slate-500 hover:text-red-400 text-xs">×</button>
+                      <span className="text-sm text-gray-200 flex-1">{f}</span>
+                      <button onClick={() => onUpdate(card.id, { canonFacts: card.canonFacts.filter((_, j) => j !== i) })} className="text-gray-500 hover:text-red-400 text-xs">×</button>
                     </div>
                   ))}
                   {editField === 'newFact' ? (
                     <div className="space-y-2">
                       <input value={editValue} onChange={e => setEditValue(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white text-sm"
+                        className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-white text-sm"
                         placeholder="New fact..." autoFocus onKeyDown={e => e.key === 'Enter' && saveEdit('newFact')} />
                       <div className="flex gap-2">
                         <Button size="sm" variant="success" onClick={() => saveEdit('newFact')}>Add</Button>
@@ -978,7 +1361,7 @@ const DetailDrawer = ({ card, isOpen, onClose, onUpdate, onDelete, onGenerateRif
                     </div>
                   ) : (
                     <button onClick={() => { setEditField('newFact'); setEditValue(''); }}
-                      className="w-full py-2 border border-dashed border-slate-600 rounded-lg text-sm text-slate-500 hover:text-white hover:border-slate-400">
+                      className="w-full py-2 border border-dashed border-gray-700 rounded-lg text-sm text-gray-500 hover:text-white hover:border-gray-600">
                       + Add Fact
                     </button>
                   )}
@@ -990,7 +1373,7 @@ const DetailDrawer = ({ card, isOpen, onClose, onUpdate, onDelete, onGenerateRif
                 const charEvents = onGetCharacterEvents(card.name);
                 return charEvents.length > 0 ? (
                   <div>
-                    <div className="text-xs text-slate-500 uppercase mb-2">Events & Milestones</div>
+                    <div className="text-xs text-gray-500 uppercase mb-2">Events & Milestones</div>
                     <div className="space-y-2 max-h-64 overflow-y-auto">
                       {charEvents.map((evt) => {
                         const typeColors = {
@@ -999,9 +1382,9 @@ const DetailDrawer = ({ card, isOpen, onClose, onUpdate, onDelete, onGenerateRif
                           attack: 'text-red-400 bg-red-900/20 border-red-500/30',
                           discovery: 'text-amber-400 bg-amber-900/20 border-amber-500/30',
                           levelup: 'text-emerald-400 bg-emerald-900/20 border-emerald-500/30',
-                          story: 'text-violet-400 bg-violet-900/20 border-violet-500/30'
+                          story: 'text-indigo-400 bg-indigo-900/20 border-indigo-500/30'
                         };
-                        const colorClass = typeColors[evt.type] || 'text-slate-400 bg-slate-800/50 border-slate-700';
+                        const colorClass = typeColors[evt.type] || 'text-gray-400 bg-gray-800/50 border-gray-800';
 
                         return (
                           <div key={evt.id} className={`flex items-start gap-2 rounded-lg p-2 border ${colorClass}`}>
@@ -1017,7 +1400,7 @@ const DetailDrawer = ({ card, isOpen, onClose, onUpdate, onDelete, onGenerateRif
                                 </div>
                               )}
                             </div>
-                            <div className="text-[10px] text-slate-500">
+                            <div className="text-[10px] text-gray-500">
                               {new Date(evt.timestamp).toLocaleTimeString()}
                             </div>
                           </div>
@@ -1033,9 +1416,9 @@ const DetailDrawer = ({ card, isOpen, onClose, onUpdate, onDelete, onGenerateRif
               {templates.map(t => {
                 const val = card.riffs?.[t.key];
                 return (
-                  <div key={t.key} className={`rounded-lg p-3 ${val ? 'bg-amber-900/20 border border-amber-500/30' : 'bg-slate-800/50 border border-slate-700'}`}>
+                  <div key={t.key} className={`rounded-lg p-3 ${val ? 'bg-amber-900/20 border border-amber-500/30' : 'bg-gray-800/50 border border-gray-800'}`}>
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs text-slate-400 uppercase">{t.label}</span>
+                      <span className="text-xs text-gray-400 uppercase">{t.label}</span>
                       <div className="flex gap-1">
                         {val && <Button size="xs" variant="success" onClick={() => {
                           const fact = `${t.label}: ${val}`;
@@ -1047,7 +1430,7 @@ const DetailDrawer = ({ card, isOpen, onClose, onUpdate, onDelete, onGenerateRif
                         </Button>
                       </div>
                     </div>
-                    {val ? <p className="text-sm text-amber-200">{val}</p> : <p className="text-sm text-slate-600 italic">Not generated</p>}
+                    {val ? <p className="text-sm text-amber-200">{val}</p> : <p className="text-sm text-gray-600 italic">Not generated</p>}
                   </div>
                 );
               })}
@@ -1246,11 +1629,11 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
   };
 
   return (
-    <div className="bg-slate-800/50 rounded-lg border border-slate-700 p-3">
+    <div className="bg-gray-800/50 rounded-lg border border-gray-800 p-3">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-3">
-          <span className="text-slate-500">{Icons.audio}</span>
-          <span className="text-sm font-medium text-slate-300">Audio Session</span>
+          <span className="text-gray-500">{Icons.audio}</span>
+          <span className="text-sm font-medium text-gray-300">Audio Session</span>
         </div>
 
         {/* Live Session Button */}
@@ -1281,7 +1664,7 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
           {!isLive && status === 'idle' && (
             <label className="cursor-pointer">
               <input type="file" accept="audio/*" onChange={e => { if (e.target.files?.[0]) { setFile(e.target.files[0]); setStatus('ready'); setProgress(0); setError(null); } }} className="hidden" />
-              <span className="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded text-slate-300">Upload File</span>
+              <span className="text-xs bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded text-gray-300">Upload File</span>
             </label>
           )}
         </div>
@@ -1298,13 +1681,13 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
 
       {file && !isLive && (
         <div className="space-y-2">
-          <div className="text-xs text-slate-400">{file.name}</div>
-          <div className="h-1.5 bg-slate-900 rounded-full overflow-hidden">
-            <div className="h-full bg-violet-500 transition-all" style={{ width: `${progress}%` }} />
+          <div className="text-xs text-gray-400">{file.name}</div>
+          <div className="h-1.5 bg-gray-900 rounded-full overflow-hidden">
+            <div className="h-full bg-indigo-500 transition-all" style={{ width: `${progress}%` }} />
           </div>
           <div className="flex items-center gap-2">
             {status === 'ready' && <Button size="sm" variant="primary" onClick={transcribe} disabled={!settings.deepgramKey} className="flex items-center gap-1">{Icons.play} Transcribe</Button>}
-            {status === 'transcribing' && <span className="text-xs text-violet-400 animate-pulse">Processing... {progress.toFixed(0)}%</span>}
+            {status === 'transcribing' && <span className="text-xs text-indigo-400 animate-pulse">Processing... {progress.toFixed(0)}%</span>}
             {status === 'complete' && <span className="text-xs text-emerald-400 flex items-center gap-1">{Icons.check} Done</span>}
             <Button size="sm" variant="ghost" onClick={() => { setFile(null); setStatus('idle'); setProgress(0); setError(null); }}>Clear</Button>
           </div>
@@ -1313,7 +1696,7 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
       )}
 
       {!file && !isLive && (
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-gray-500">
           {settings.deepgramKey ? 'Start a live session or upload an audio file' : 'Add Deepgram key in Settings to enable'}
         </p>
       )}
@@ -1365,39 +1748,39 @@ const CreateCardModal = ({ isOpen, onClose, onCreate, cardType }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-md p-6">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 rounded-xl border border-gray-800 w-full max-w-md p-6">
         <h3 className="font-semibold text-lg mb-4">New {typeLabels[cardType]}</h3>
         <div className="space-y-3">
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Name</label>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Name</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
-              className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white"
+              className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-indigo-500 focus:outline-none transition-colors"
               placeholder={`${typeLabels[cardType]} name...`}
               autoFocus
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Notes</label>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Notes</label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white h-20 resize-none"
+              className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white h-20 resize-none focus:border-indigo-500 focus:outline-none transition-colors"
               placeholder="Description, details..."
             />
           </div>
           {(cardType === 'CHARACTER' || cardType === 'ENEMY') && (
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">HP (optional)</label>
+              <label className="block text-sm font-medium text-gray-300 mb-1">HP (optional)</label>
               <input
                 type="number"
                 value={hp}
                 onChange={(e) => setHp(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white"
+                className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-indigo-500 focus:outline-none transition-colors"
                 placeholder="Hit points..."
               />
             </div>
@@ -1409,9 +1792,9 @@ const CreateCardModal = ({ isOpen, onClose, onCreate, cardType }) => {
                 id="isPC"
                 checked={isPC}
                 onChange={(e) => setIsPC(e.target.checked)}
-                className="w-4 h-4"
+                className="w-4 h-4 rounded border-gray-700 bg-gray-950 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-gray-900"
               />
-              <label htmlFor="isPC" className="text-sm text-slate-300">Player Character</label>
+              <label htmlFor="isPC" className="text-sm text-gray-300">Player Character</label>
             </div>
           )}
         </div>
@@ -1448,8 +1831,7 @@ const CampaignView = ({ campaign, onUpdate, onBack, settings, onSaveSettings }) 
   const [currentSessionId, setCurrentSessionId] = useState(activeSession.id);
   const [showRoster, setShowRoster] = useState(false);
   const [showArc, setShowArc] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [showReport, setShowReport] = useState(false);
+  const [showTools, setShowTools] = useState(false);
   const transcriptRef = useRef(null);
 
   // Keep a ref to always get the latest campaign state
@@ -1458,11 +1840,31 @@ const CampaignView = ({ campaign, onUpdate, onBack, settings, onSaveSettings }) 
     campaignRef.current = campaign;
   }, [campaign]);
 
+  // Throttling for AI requests - minimum 2 seconds between calls
+  const lastAICallRef = useRef(0);
+  const pendingTextRef = useRef([]);
+  const throttleTimerRef = useRef(null);
+
   const currentSession = sessions.find(s => s.id === currentSessionId) || activeSession;
-  const cards = campaign.cards || [];
+  const allCards = campaign.cards || [];
+  const voidCards = campaign.void || [];
   const transcript = currentSession.transcript || [];
   const dmContext = campaign.dmContext || '';
   const playerRoster = campaign.playerRoster || [];
+  const [showVoid, setShowVoid] = useState(false);
+
+  // Session-based card filtering: show cards that existed at the time of the selected session
+  // Cards are visible if they were created in the current session or any previous session
+  const getSessionIndex = (sessionId) => sessions.findIndex(s => s.id === sessionId);
+  const currentSessionIndex = getSessionIndex(currentSessionId);
+
+  const cards = allCards.filter(card => {
+    // If card has no sessionId (legacy), always show it
+    if (!card.sessionId) return true;
+    // Show card if it was created in this session or an earlier session
+    const cardSessionIndex = getSessionIndex(card.sessionId);
+    return cardSessionIndex <= currentSessionIndex;
+  });
 
   const save = (updates) => onUpdate({ ...campaignRef.current, ...updates, updatedAt: new Date().toISOString() });
 
@@ -1474,8 +1876,48 @@ const CampaignView = ({ campaign, onUpdate, onBack, settings, onSaveSettings }) 
 
   const deleteCard = (id) => {
     const latest = campaignRef.current;
-    onUpdate({ ...latest, cards: latest.cards.filter(c => c.id !== id), updatedAt: new Date().toISOString() });
+    const cardToDelete = latest.cards.find(c => c.id === id);
+    if (!cardToDelete) return;
+
+    // Move to Void instead of permanent deletion
+    const voidedCard = {
+      ...cardToDelete,
+      voidedAt: new Date().toISOString(),
+      voidedInSession: currentSessionId
+    };
+
+    onUpdate({
+      ...latest,
+      cards: latest.cards.filter(c => c.id !== id),
+      void: [...(latest.void || []), voidedCard],
+      updatedAt: new Date().toISOString()
+    });
     if (selected?.id === id) setSelected(null);
+  };
+
+  const restoreFromVoid = (id) => {
+    const latest = campaignRef.current;
+    const cardToRestore = (latest.void || []).find(c => c.id === id);
+    if (!cardToRestore) return;
+
+    // Remove void metadata and restore
+    const { voidedAt, voidedInSession, ...restoredCard } = cardToRestore;
+
+    onUpdate({
+      ...latest,
+      cards: [...latest.cards, restoredCard],
+      void: (latest.void || []).filter(c => c.id !== id),
+      updatedAt: new Date().toISOString()
+    });
+  };
+
+  const permanentlyDelete = (id) => {
+    const latest = campaignRef.current;
+    onUpdate({
+      ...latest,
+      void: (latest.void || []).filter(c => c.id !== id),
+      updatedAt: new Date().toISOString()
+    });
   };
 
   const addCard = (card, genesisText = null) => {
@@ -1487,6 +1929,7 @@ const CampaignView = ({ campaign, onUpdate, onBack, settings, onSaveSettings }) 
       canonFacts: card.canonFacts || [],
       status: card.status || [],
       genesis: genesisText || null,  // Store the transcript snippet where this was introduced
+      sessionId: currentSessionId,  // Track which session created this card
       createdAt: new Date().toISOString()
     };
     onUpdate({ ...latest, cards: [...latest.cards, nc], updatedAt: new Date().toISOString() });
@@ -1633,35 +2076,103 @@ Focus on storytelling, dramatic moments, and player achievements. Be concise but
     });
   };
 
-  const processAI = async (text) => {
-    // Always save transcript first - use campaignRef to get latest state
-    const ts = new Date().toLocaleTimeString();
-    const speaker = text.toLowerCase().startsWith('dm:') ? 'DM' : 'Player';
-    const txt = text.replace(/^(dm:|player:)\s*/i, '');
+  // Static system prompt for caching - this rarely changes
+  const SYSTEM_PROMPT = `You are analyzing D&D gameplay transcript to extract and update entities.
 
-    // Get latest campaign state and append to transcript in current session
-    const latest = campaignRef.current;
-    const currentSessions = latest.sessions || sessions;
-    const session = currentSessions.find(s => s.id === currentSessionId);
-    const updatedSessions = currentSessions.map(s =>
-      s.id === currentSessionId
-        ? { ...s, transcript: [...(s.transcript || []), { speaker, text: txt, timestamp: ts }] }
-        : s
-    );
-    onUpdate({
-      ...latest,
-      sessions: updatedSessions,
-      updatedAt: new Date().toISOString()
-    });
+INSTRUCTIONS:
+1. NEVER create CHARACTER cards for real PLAYER names (left side of roster arrows) - these are out-of-game identities
+2. DO create CHARACTER cards for in-game character names (right side of roster arrows) on FIRST mention if they don't exist yet
+3. Entity TYPE rules:
+   - CHARACTER: ALL people/creatures (goblins, orcs, bandits, thieves, NPCs, party members, monsters, everyone)
+     - Set "isHostile": true if attacking, aggressive, ambushing, or clearly enemy combatants
+     - Set "isHostile": false if friendly/neutral/not yet hostile
+     - Set "inCombat": true when they engage in combat (attacking OR being attacked OR ambushing)
+   - LOCATION: Places (taverns, caves, cities, dungeons)
+   - ITEM: Objects (weapons, treasure, quest items, artifacts)
+   - PLOT: Story threads, mysteries, quests
+4. Combat state management - IMPORTANT:
+   - "ambushed by goblins" → CREATE goblins with {"inCombat": true, "isHostile": true} AND trigger modeSwitch: "combat"
+   - "three goblins attack" → CREATE goblins with {"inCombat": true, "isHostile": true}
+   - "tall goblin draws sword and charges" → UPDATE that goblin: {"inCombat": true, "isHostile": true}
+   - "party negotiates successfully" → UPDATE enemies: {"inCombat": false, "isHostile": false}
+   - When combat starts, BOTH attackers AND defenders get "inCombat": true
+   - AMBUSH = combat. Ambushing creatures are ALWAYS hostile and in combat.
+5. If a character name or alias from the roster is mentioned AGAIN, update the EXISTING character card (don't create duplicates)
+6. CRITICAL - Entity clarification patterns (UPDATE existing, DON'T create new):
+   - "the barmaid introduces herself as Greta" → UPDATE existing "barmaid" with name: "Greta"
+   - "the tall goblin in the middle" → UPDATE existing goblin with description
+   - Look at RECENT CONTEXT - if a generic term was JUST mentioned, this is likely a clarification
+7. For multiple creatures (e.g., "three goblins", "six thieves"), use "count" field (count: 3, count: 6)
+8. Only create NEW entities if they're genuinely new, not clarifications of recent mentions
+9. IMPORTANT: Detect HP changes from phrases like:
+   - "X takes 5 damage" → {"name": "X", "damage": 5}
+   - "The orc did 3 points of damage to Y" → {"name": "Y", "damage": 3}
+   - "damaged someone for 2 points" (use context to identify who took damage)
+   - "X deals 8 damage to Y" → {"name": "Y", "damage": 8}
+   - "heals for 10" → {"name": "X", "healing": 10}
+10. Extract D&D 5.5e stats when mentioned:
+   - Ability scores (STR, DEX, CON, INT, WIS, CHA): "Kermit has 18 charisma" → update CHARACTER with stats: {CHA: 18}
+   - AC, Level, Class: "level 5 barbarian with AC 16" → level: 5, class: "Barbarian", ac: 16
+11. IMPORTANT: Extract character events/milestones:
+   - Ability checks: "Kermit rolls 18 on persuasion" → {"character": "Kermit", "type": "check", "detail": "Persuasion 18", "outcome": "success"}
+   - Saving throws: "Clara fails her DEX save" → {"character": "Clara", "type": "save", "detail": "DEX save", "outcome": "fail"}
+   - Attack rolls: "natural 20!" → {"character": "X", "type": "attack", "detail": "Natural 20", "outcome": "critical"}
+   - Discoveries: "finds a secret door" → {"character": "X", "type": "discovery", "detail": "Secret door"}
+   - Level ups: "reaches level 5" → {"character": "X", "type": "levelup", "detail": "Level 5"}
+   - Story moments: "makes a deal with the demon" → {"character": "X", "type": "story", "detail": "Deal with demon"}
 
+Return ONLY valid JSON (no markdown):
+{
+  "newCards": [
+    {"type": "CHARACTER", "name": "Greta", "notes": "Innkeeper", "isCanon": true, "isPC": false, "inParty": false, "isHostile": false, "inCombat": false, "count": 1},
+    {"type": "CHARACTER", "name": "Goblin", "notes": "Goblins ambushing on the road", "isCanon": true, "isHostile": true, "inCombat": true, "count": 3}
+  ],
+  "cardUpdates": [
+    {"name": "Goblin 2", "updates": {"notes": "Tall goblin in the middle with broadsword"}},
+    {"name": "Gargamel Vincent", "updates": {"inCombat": true}}
+  ],
+  "hpChanges": [
+    {"name": "Everett", "damage": 5}
+  ],
+  "statusChanges": [
+    {"name": "Clara", "addStatus": ["Poisoned"]}
+  ],
+  "events": [
+    {"character": "Kermit", "type": "check", "detail": "Persuasion 18", "outcome": "success"},
+    {"character": "Clara", "type": "discovery", "detail": "Found ancient tome"}
+  ],
+  "modeSwitch": "combat"
+}
+
+- newCards: EVERYTHING is type "CHARACTER" (goblins, thieves, NPCs, monsters, everyone!)
+  - "three goblins appear" → {"type": "CHARACTER", "name": "Goblin", "count": 3, "isHostile": false, "inCombat": false} (creates Goblin 1-3)
+  - "ambushed by goblins" → {"type": "CHARACTER", "name": "Goblin", "count": 3, "isHostile": true, "inCombat": true} (hostile + in combat!)
+  - Set "isHostile": true if attacking, ambushing, aggressive, or enemy combatants
+  - Set "inCombat": true if engaged in combat, attacking, or ambushing
+  - Set "isPC": true for player characters, "inParty": true if traveling with party
+- cardUpdates: UPDATE existing cards with combat state changes
+  - "tall goblin charges" → UPDATE {"inCombat": true, "isHostile": true}
+  - "party negotiates" → UPDATE {"inCombat": false, "isHostile": false}
+  - Combat ends → UPDATE all combatants: {"inCombat": false}
+- hpChanges: damage/healing with character names
+- statusChanges: D&D 5.5e conditions
+- modeSwitch: "combat" when combat starts, null otherwise
+
+If no changes, return empty arrays.`;
+
+  // Core AI processing function (called after throttle)
+  const executeAIProcessing = async (textsToProcess) => {
     if (!settings.anthropicKey) {
       console.log('⚠️ No Anthropic API key - skipping AI processing');
       return;
     }
 
+    // Combine multiple texts if batched
+    const combinedText = textsToProcess.join(' | ');
+
     setProcessing(true);
     try {
-      console.log('🤖 Processing transcript:', text);
+      console.log(`🤖 Processing ${textsToProcess.length} transcript(s):`, combinedText.substring(0, 100) + '...');
 
       // Get latest state for AI prompt
       const latestForPrompt = campaignRef.current;
@@ -1685,9 +2196,8 @@ Focus on storytelling, dramatic moments, and player achievements. Be concise but
       const sessionTranscript = session?.transcript || [];
       const recentTranscript = sessionTranscript.slice(-5).map(t => `${t.speaker}: ${t.text}`).join('\n');
 
-      const prompt = `You are analyzing D&D gameplay transcript to extract and update entities.
-
-PLAYER ROSTER (DO NOT create cards for these real player names - only their character names):
+      // User message with dynamic context
+      const userPrompt = `PLAYER ROSTER (DO NOT create cards for these real player names - only their character names):
 ${rosterSummary}
 
 EXISTING ENTITIES:
@@ -1696,90 +2206,31 @@ ${existingCardsSummary}
 RECENT CONTEXT:
 ${recentTranscript}
 
-NEW TRANSCRIPT: ${text}
+NEW TRANSCRIPT: ${combinedText}
 
-DM SECRET CONTEXT: ${latestForPrompt.dmContext}
-
-INSTRUCTIONS:
-1. NEVER create CHARACTER cards for real PLAYER names (left side of roster arrows) - these are out-of-game identities
-2. DO create CHARACTER cards for in-game character names (right side of roster arrows) on FIRST mention if they don't exist yet
-3. Entity TYPE rules:
-   - CHARACTER: ALL people/creatures (goblins, orcs, bandits, thieves, NPCs, party members, monsters, everyone)
-     - Set "isHostile": true if attacking/aggressive (goblins charging, bandits ambushing)
-     - Set "isHostile": false if friendly/neutral/not yet hostile
-     - Set "inCombat": true when they engage in combat (attacking OR being attacked)
-   - LOCATION: Places (taverns, caves, cities, dungeons)
-   - ITEM: Objects (weapons, treasure, quest items, artifacts)
-   - PLOT: Story threads, mysteries, quests
-4. Combat state management:
-   - "tall goblin draws sword and charges" → UPDATE that goblin: {"inCombat": true, "isHostile": true}
-   - "party negotiates successfully" → UPDATE goblins: {"inCombat": false, "isHostile": false}
-   - When combat starts, BOTH attackers AND defenders get "inCombat": true
-5. If a character name or alias from the roster is mentioned AGAIN, update the EXISTING character card (don't create duplicates)
-6. CRITICAL - Entity clarification patterns (UPDATE existing, DON'T create new):
-   - "the barmaid introduces herself as Greta" → UPDATE existing "barmaid" with name: "Greta"
-   - "the tall goblin in the middle" → UPDATE existing goblin with description
-   - Look at RECENT CONTEXT - if a generic term was JUST mentioned, this is likely a clarification
-7. For multiple creatures (e.g., "three goblins", "six thieves"), use "count" field (count: 3, count: 6)
-8. Only create NEW entities if they're genuinely new, not clarifications of recent mentions
-9. IMPORTANT: Detect HP changes from phrases like:
-   - "X takes 5 damage" → {"name": "X", "damage": 5}
-   - "The orc did 3 points of damage to Y" → {"name": "Y", "damage": 3}
-   - "damaged someone for 2 points" (use context to identify who took damage)
-   - "X deals 8 damage to Y" → {"name": "Y", "damage": 8}
-   - "heals for 10" → {"name": "X", "healing": 10}
-8. Extract D&D 5.5e stats when mentioned:
-   - Ability scores (STR, DEX, CON, INT, WIS, CHA): "Kermit has 18 charisma" → update CHARACTER with stats: {CHA: 18}
-   - AC, Level, Class: "level 5 barbarian with AC 16" → level: 5, class: "Barbarian", ac: 16
-9. IMPORTANT: Extract character events/milestones:
-   - Ability checks: "Kermit rolls 18 on persuasion" → {"character": "Kermit", "type": "check", "detail": "Persuasion 18", "outcome": "success"}
-   - Saving throws: "Clara fails her DEX save" → {"character": "Clara", "type": "save", "detail": "DEX save", "outcome": "fail"}
-   - Attack rolls: "natural 20!" → {"character": "X", "type": "attack", "detail": "Natural 20", "outcome": "critical"}
-   - Discoveries: "finds a secret door" → {"character": "X", "type": "discovery", "detail": "Secret door"}
-   - Level ups: "reaches level 5" → {"character": "X", "type": "levelup", "detail": "Level 5"}
-   - Story moments: "makes a deal with the demon" → {"character": "X", "type": "story", "detail": "Deal with demon"}
-
-Return ONLY valid JSON (no markdown):
-{
-  "newCards": [
-    {"type": "CHARACTER", "name": "Greta", "notes": "Innkeeper", "isCanon": true, "isPC": false, "inParty": false, "isHostile": false, "inCombat": false, "count": 1},
-    {"type": "CHARACTER", "name": "Goblin", "notes": "Goblin encountered on road", "isCanon": true, "isHostile": false, "inCombat": false, "count": 3}
-  ],
-  "cardUpdates": [
-    {"name": "Goblin 2", "updates": {"notes": "Tall goblin in the middle with broadsword", "inCombat": true, "isHostile": true}},
-    {"name": "Gargamel Vincent", "updates": {"inCombat": true}}
-  ],
-  "hpChanges": [
-    {"name": "Everett", "damage": 5}
-  ],
-  "statusChanges": [
-    {"name": "Clara", "addStatus": ["Poisoned"]}
-  ],
-  "events": [
-    {"character": "Kermit", "type": "check", "detail": "Persuasion 18", "outcome": "success"},
-    {"character": "Clara", "type": "discovery", "detail": "Found ancient tome"}
-  ],
-  "modeSwitch": "combat"
-}
-
-- newCards: EVERYTHING is type "CHARACTER" (goblins, thieves, NPCs, monsters, everyone!)
-  - "three goblins" → {"type": "CHARACTER", "name": "Goblin", "count": 3, "isHostile": false} (creates Goblin 1-3)
-  - Set "isHostile": true ONLY if actively attacking in this transcript
-  - Set "inCombat": true ONLY if engaged in combat right now
-  - Set "isPC": true for player characters, "inParty": true if traveling with party
-- cardUpdates: UPDATE existing cards with combat state changes
-  - "tall goblin charges" → UPDATE {"inCombat": true, "isHostile": true}
-  - "party negotiates" → UPDATE {"inCombat": false, "isHostile": false}
-- hpChanges: damage/healing with character names
-- statusChanges: D&D 5.5e conditions
-- modeSwitch: "combat" when combat starts, null otherwise
-
-If no changes, return empty arrays.`;
+DM SECRET CONTEXT: ${latestForPrompt.dmContext || 'None'}`;
 
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': settings.anthropicKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 1024, messages: [{ role: 'user', content: prompt }] })
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': settings.anthropicKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5',
+          max_tokens: 1024,
+          // Use system prompt with cache_control for prompt caching
+          system: [
+            {
+              type: 'text',
+              text: SYSTEM_PROMPT,
+              cache_control: { type: 'ephemeral' }
+            }
+          ],
+          messages: [{ role: 'user', content: userPrompt }]
+        })
       });
 
       if (!res.ok) {
@@ -1895,6 +2346,8 @@ If no changes, return empty arrays.`;
         console.log(`🔄 Updating ${ai.cardUpdates.length} existing cards`);
         const latestForUpdates = campaignRef.current;
 
+        const cardsToCreateFromUpdates = [];
+
         ai.cardUpdates.forEach(update => {
           const existingCard = latestForUpdates.cards.find(c =>
             c.name.toLowerCase() === update.name.toLowerCase()
@@ -1911,9 +2364,47 @@ If no changes, return empty arrays.`;
 
             updateCard(existingCard.id, updatedCard);
           } else {
-            console.log(`  ⚠️ Could not find card to update: ${update.name}`);
+            // Card doesn't exist - create it instead of silently failing
+            console.log(`  ⚠️ Card "${update.name}" not found, creating new card instead`);
+            cardsToCreateFromUpdates.push({
+              type: 'CHARACTER',
+              name: update.name,
+              notes: update.updates?.notes || '',
+              isCanon: true,
+              isPC: false,
+              inParty: false,
+              isHostile: update.updates?.isHostile || false,
+              inCombat: update.updates?.inCombat || false,
+              ...update.updates
+            });
           }
         });
+
+        // Create any cards that were referenced in updates but didn't exist
+        if (cardsToCreateFromUpdates.length > 0) {
+          const latestForNewCards = campaignRef.current;
+          const newCardsToAdd = cardsToCreateFromUpdates
+            .filter(c => !latestForNewCards.cards.some(x => x.name.toLowerCase() === c.name.toLowerCase()))
+            .map(c => ({
+              ...c,
+              id: `card-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              riffs: {},
+              canonFacts: [],
+              status: [],
+              sessionId: currentSessionId,  // Track which session created this card
+              genesis: combinedText,  // Store the transcript that created this card
+              createdAt: new Date().toISOString()
+            }));
+
+          if (newCardsToAdd.length > 0) {
+            console.log(`  ➕ Creating ${newCardsToAdd.length} cards from failed updates`);
+            onUpdate({
+              ...latestForNewCards,
+              cards: [...latestForNewCards.cards, ...newCardsToAdd],
+              updatedAt: new Date().toISOString()
+            });
+          }
+        }
       }
 
       // Handle new cards
@@ -1955,7 +2446,8 @@ If no changes, return empty arrays.`;
             riffs: {},
             canonFacts: c.canonFacts || [],
             status: c.status || [],
-            genesis: text,  // Store the transcript that created this card
+            genesis: combinedText,  // Store the transcript that created this card
+            sessionId: currentSessionId,  // Track which session created this card
             createdAt: new Date().toISOString(),
             inCombat: mode === 'combat' && (c.type === 'ENEMY' || c.type === 'CHARACTER') // Auto-add to combat if in combat mode
           }));
@@ -2003,6 +2495,67 @@ If no changes, return empty arrays.`;
     setProcessing(false);
   };
 
+  // Throttled processAI - saves transcript immediately, batches AI calls
+  const processAI = async (text) => {
+    // Always save transcript first - use campaignRef to get latest state
+    const ts = new Date().toLocaleTimeString();
+    const speaker = text.toLowerCase().startsWith('dm:') ? 'DM' : 'Player';
+    const txt = text.replace(/^(dm:|player:)\s*/i, '');
+
+    // Get latest campaign state and append to transcript in current session
+    const latest = campaignRef.current;
+    const currentSessions = latest.sessions || sessions;
+    const updatedSessions = currentSessions.map(s =>
+      s.id === currentSessionId
+        ? { ...s, transcript: [...(s.transcript || []), { speaker, text: txt, timestamp: ts }] }
+        : s
+    );
+    onUpdate({
+      ...latest,
+      sessions: updatedSessions,
+      updatedAt: new Date().toISOString()
+    });
+
+    if (!settings.anthropicKey) {
+      console.log('⚠️ No Anthropic API key - skipping AI processing');
+      return;
+    }
+
+    // Add to pending texts
+    pendingTextRef.current.push(text);
+
+    // Check if we can make an API call now
+    const now = Date.now();
+    const timeSinceLastCall = now - lastAICallRef.current;
+    const THROTTLE_MS = 2000; // 2 seconds minimum between calls
+
+    if (timeSinceLastCall >= THROTTLE_MS && !throttleTimerRef.current) {
+      // We can call immediately
+      const textsToProcess = [...pendingTextRef.current];
+      pendingTextRef.current = [];
+      lastAICallRef.current = now;
+      console.log(`⚡ Processing immediately (${timeSinceLastCall}ms since last call)`);
+      await executeAIProcessing(textsToProcess);
+    } else if (!throttleTimerRef.current) {
+      // Schedule a call after the throttle period
+      const waitTime = THROTTLE_MS - timeSinceLastCall;
+      console.log(`⏳ Throttling: waiting ${waitTime}ms before processing`);
+      throttleTimerRef.current = setTimeout(async () => {
+        const textsToProcess = [...pendingTextRef.current];
+        pendingTextRef.current = [];
+        lastAICallRef.current = Date.now();
+        throttleTimerRef.current = null;
+        if (textsToProcess.length > 0) {
+          console.log(`⚡ Processing ${textsToProcess.length} batched transcript(s)`);
+          await executeAIProcessing(textsToProcess);
+        }
+      }, waitTime);
+    } else {
+      // Timer already pending, text will be included in next batch
+      console.log(`📦 Queued for batch (${pendingTextRef.current.length} pending)`);
+    }
+  };
+
   const submit = () => { if (input.trim()) { processAI(input); setInput(''); } };
 
   // Combat view: split by hostility
@@ -2020,20 +2573,20 @@ If no changes, return empty arrays.`;
   useEffect(() => { if (transcriptRef.current && transcriptOpen) transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight; }, [transcript, transcriptOpen]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <header className="bg-slate-900/80 border-b border-slate-800 px-4 py-3">
-        <div className="flex items-center justify-between">
+    <div className="min-h-screen bg-gray-950 text-gray-100">
+      <header className="h-16 bg-gray-950/80 backdrop-blur-md border-b border-gray-800 px-4 sticky top-0 z-30 flex items-center">
+        <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
-            <button onClick={onBack} className="text-slate-400 hover:text-white flex items-center gap-1">{Icons.back}</button>
+            <button onClick={onBack} className="text-gray-400 hover:text-white flex items-center gap-1 transition-colors">{Icons.back}</button>
             <h1 className="text-lg font-semibold text-white">{campaign.name}</h1>
 
             {/* Session Selector */}
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500">|</span>
+              <span className="text-xs text-gray-600">|</span>
               <select
                 value={currentSessionId}
                 onChange={(e) => setCurrentSessionId(e.target.value)}
-                className="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-violet-500"
+                className="bg-gray-900 border border-gray-800 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-500 transition-colors"
               >
                 {sessions.map((s, i) => (
                   <option key={s.id} value={s.id}>
@@ -2062,27 +2615,26 @@ If no changes, return empty arrays.`;
                   });
                   setCurrentSessionId(newSession.id);
                 }}
-                className="text-xs text-violet-400 hover:text-violet-300 px-2 py-1 bg-slate-800 border border-slate-700 rounded"
+                className="text-xs text-indigo-400 hover:text-indigo-300 px-2 py-1 bg-gray-900 border border-gray-800 rounded transition-colors"
                 title="Start new session"
               >
                 + New
               </button>
             </div>
 
-            <div className="flex items-center bg-slate-800 rounded-lg p-0.5 ml-2">
-              <button onClick={() => setMode('exploration')} className={`px-3 py-1 rounded text-xs font-medium flex items-center gap-1.5 ${mode === 'exploration' ? 'bg-violet-600 text-white' : 'text-slate-400'}`}>{Icons.exploration} Exploration</button>
-              <button onClick={() => setMode('combat')} className={`px-3 py-1 rounded text-xs font-medium flex items-center gap-1.5 ${mode === 'combat' ? 'bg-red-600 text-white' : 'text-slate-400'}`}>{Icons.combat} Combat</button>
+            <div className="flex items-center bg-gray-900 rounded-lg p-0.5 ml-2">
+              <button onClick={() => setMode('exploration')} className={`px-3 py-1 rounded text-xs font-medium flex items-center gap-1.5 transition-colors ${mode === 'exploration' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-gray-200'}`}>{Icons.exploration} Exploration</button>
+              <button onClick={() => setMode('combat')} className={`px-3 py-1 rounded text-xs font-medium flex items-center gap-1.5 transition-colors ${mode === 'combat' ? 'bg-red-600 text-white' : 'text-gray-400 hover:text-gray-200'}`}>{Icons.combat} Combat</button>
             </div>
-            {processing && <span className="text-xs text-violet-400 animate-pulse">Processing...</span>}
+            {processing && <span className="text-xs text-indigo-400 animate-pulse">Processing...</span>}
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setShowRoster(true)} className="flex items-center gap-1.5 text-slate-400 hover:text-white">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setShowRoster(true)} className="flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors">
+              <IconUsers size={16} />
               <span className="text-xs">Roster</span>
             </button>
-            <button onClick={() => setShowArc(true)} className="flex items-center gap-1.5 text-slate-400 hover:text-white">{Icons.book} <span className="text-xs">Arc</span></button>
-            <button onClick={() => setShowReport(true)} className="flex items-center gap-1.5 text-slate-400 hover:text-white">{Icons.transcript} <span className="text-xs">Report</span></button>
-            <button onClick={() => setShowSettings(true)} className="flex items-center gap-1.5 text-slate-400 hover:text-white">{Icons.settings} <span className="text-xs">Settings</span></button>
+            <button onClick={() => setShowArc(true)} className="flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors">{Icons.book} <span className="text-xs">Arc</span></button>
+            <button onClick={() => setShowTools(true)} className="flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors">{Icons.settings} <span className="text-xs">Tools</span></button>
           </div>
         </div>
       </header>
@@ -2093,13 +2645,13 @@ If no changes, return empty arrays.`;
             <div>
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-sm font-semibold text-emerald-400 flex items-center gap-1.5">{Icons.party} Party</h2>
-                <button onClick={() => setCreateModalType('CHARACTER')} className="p-1 rounded hover:bg-slate-700/50 text-emerald-400 hover:text-emerald-300">
+                <button onClick={() => setCreateModalType('CHARACTER')} className="p-1 rounded hover:bg-gray-800/50 text-emerald-400 hover:text-emerald-300">
                   {Icons.plus}
                 </button>
               </div>
               <div className="space-y-2">
                 {combatParty.length === 0 ? (
-                  <div className="text-slate-600 text-xs italic p-3 border border-dashed border-slate-700 rounded-lg text-center">No party members in combat</div>
+                  <div className="text-gray-600 text-xs italic p-3 border border-dashed border-gray-800 rounded-lg text-center">No party members in combat</div>
                 ) : (
                   combatParty.map(c => <CompactCard key={c.id} card={c} onClick={() => setSelected(c)} onQuickHP={quickHP} onDelete={deleteCard} onReorder={reorderCards} isInCombat />)
                 )}
@@ -2108,12 +2660,12 @@ If no changes, return empty arrays.`;
             <div>
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-sm font-semibold text-red-400 flex items-center gap-1.5">{Icons.enemy} Enemies</h2>
-                <button onClick={() => setCreateModalType('ENEMY')} className="p-1 rounded hover:bg-slate-700/50 text-red-400 hover:text-red-300">
+                <button onClick={() => setCreateModalType('ENEMY')} className="p-1 rounded hover:bg-gray-800/50 text-red-400 hover:text-red-300">
                   {Icons.plus}
                 </button>
               </div>
               <div className="space-y-2">
-                {combatEnemies.length === 0 ? <div className="text-slate-600 text-xs italic p-3 border border-dashed border-slate-700 rounded-lg text-center">No enemies in combat</div>
+                {combatEnemies.length === 0 ? <div className="text-gray-600 text-xs italic p-3 border border-dashed border-gray-800 rounded-lg text-center">No enemies in combat</div>
                   : combatEnemies.map(c => <CompactCard key={c.id} card={c} onClick={() => setSelected(c)} onQuickHP={quickHP} onDelete={deleteCard} onReorder={reorderCards} isInCombat />)}
               </div>
             </div>
@@ -2122,14 +2674,14 @@ If no changes, return empty arrays.`;
           <div className="grid grid-cols-4 gap-4">
             <div>
               <div className="flex items-center justify-between mb-2">
-                <h2 className="text-sm font-semibold text-violet-400 flex items-center gap-1.5">{Icons.character} Characters</h2>
-                <button onClick={() => setCreateModalType('CHARACTER')} className="p-1 rounded hover:bg-slate-700/50 text-violet-400 hover:text-violet-300">
+                <h2 className="text-sm font-semibold text-indigo-400 flex items-center gap-1.5">{Icons.character} Characters</h2>
+                <button onClick={() => setCreateModalType('CHARACTER')} className="p-1 rounded hover:bg-gray-800/50 text-indigo-400 hover:text-indigo-300">
                   {Icons.plus}
                 </button>
               </div>
               <div className="space-y-2">
                 {[...party, ...npcs].length === 0 ? (
-                  <div className="text-slate-600 text-xs italic p-3 border border-dashed border-slate-700 rounded-lg text-center">No characters</div>
+                  <div className="text-gray-600 text-xs italic p-3 border border-dashed border-gray-800 rounded-lg text-center">No characters</div>
                 ) : (
                   [...party, ...npcs].map(c => <CompactCard key={c.id} card={c} onClick={() => setSelected(c)} onQuickHP={quickHP} onDelete={deleteCard} onReorder={reorderCards} isInCombat={false} />)
                 )}
@@ -2137,37 +2689,37 @@ If no changes, return empty arrays.`;
             </div>
             <div>
               <div className="flex items-center justify-between mb-2">
-                <h2 className="text-sm font-semibold text-cyan-400 flex items-center gap-1.5">{Icons.location} Locations</h2>
-                <button onClick={() => setCreateModalType('LOCATION')} className="p-1 rounded hover:bg-slate-700/50 text-cyan-400 hover:text-cyan-300">
+                <h2 className="text-sm font-semibold text-emerald-400 flex items-center gap-1.5">{Icons.location} Locations</h2>
+                <button onClick={() => setCreateModalType('LOCATION')} className="p-1 rounded hover:bg-gray-800/50 text-emerald-400 hover:text-emerald-300">
                   {Icons.plus}
                 </button>
               </div>
               <div className="space-y-2">
-                {locations.length === 0 ? <div className="text-slate-600 text-xs italic p-3 border border-dashed border-slate-700 rounded-lg text-center">No locations</div>
+                {locations.length === 0 ? <div className="text-gray-600 text-xs italic p-3 border border-dashed border-gray-800 rounded-lg text-center">No locations</div>
                   : locations.map(c => <CompactCard key={c.id} card={c} onClick={() => setSelected(c)} onDelete={deleteCard} onReorder={reorderCards} isInCombat={false} />)}
               </div>
             </div>
             <div>
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-sm font-semibold text-amber-400 flex items-center gap-1.5">{Icons.item} Items</h2>
-                <button onClick={() => setCreateModalType('ITEM')} className="p-1 rounded hover:bg-slate-700/50 text-amber-400 hover:text-amber-300">
+                <button onClick={() => setCreateModalType('ITEM')} className="p-1 rounded hover:bg-gray-800/50 text-amber-400 hover:text-amber-300">
                   {Icons.plus}
                 </button>
               </div>
               <div className="space-y-2">
-                {items.length === 0 ? <div className="text-slate-600 text-xs italic p-3 border border-dashed border-slate-700 rounded-lg text-center">No items</div>
+                {items.length === 0 ? <div className="text-gray-600 text-xs italic p-3 border border-dashed border-gray-800 rounded-lg text-center">No items</div>
                   : items.map(c => <CompactCard key={c.id} card={c} onClick={() => setSelected(c)} onDelete={deleteCard} onReorder={reorderCards} isInCombat={false} />)}
               </div>
             </div>
             <div>
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-sm font-semibold text-pink-400 flex items-center gap-1.5">{Icons.plot} Plot</h2>
-                <button onClick={() => setCreateModalType('PLOT')} className="p-1 rounded hover:bg-slate-700/50 text-pink-400 hover:text-pink-300">
+                <button onClick={() => setCreateModalType('PLOT')} className="p-1 rounded hover:bg-gray-800/50 text-pink-400 hover:text-pink-300">
                   {Icons.plus}
                 </button>
               </div>
               <div className="space-y-2">
-                {plots.length === 0 ? <div className="text-slate-600 text-xs italic p-3 border border-dashed border-slate-700 rounded-lg text-center">No plot threads</div>
+                {plots.length === 0 ? <div className="text-gray-600 text-xs italic p-3 border border-dashed border-gray-800 rounded-lg text-center">No plot threads</div>
                   : plots.map(c => <CompactCard key={c.id} card={c} onClick={() => setSelected(c)} onDelete={deleteCard} onReorder={reorderCards} isInCombat={false} />)}
               </div>
             </div>
@@ -2175,30 +2727,32 @@ If no changes, return empty arrays.`;
         )}
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-slate-950 via-slate-950/95 to-transparent">
+      <div className="fixed bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-gray-950 via-gray-950/95 to-transparent">
         <div className="max-w-4xl mx-auto space-y-2">
           <AudioPanel settings={settings} onProcess={processAI} isProcessing={processing} />
-          <div className={`bg-slate-900/80 rounded-lg border border-slate-700 transition-all ${transcriptOpen ? 'h-96' : 'h-10'}`}>
-            <button onClick={() => setTranscriptOpen(!transcriptOpen)} className="w-full px-3 py-2 flex items-center justify-between text-xs text-slate-400 hover:text-slate-200 border-b border-slate-700">
-              <span className="flex items-center gap-2">
-                <span className={`w-1.5 h-1.5 rounded-full ${transcript.length > 0 ? 'bg-emerald-500' : 'bg-slate-600'}`} />
+          <div className={`bg-gray-900/90 backdrop-blur-md rounded-2xl border border-gray-800 transition-all ${transcriptOpen ? 'h-96' : 'h-10'}`}>
+            <div className="w-full px-3 py-2 flex items-center justify-between text-xs text-gray-400 border-b border-gray-800">
+              <button onClick={() => setTranscriptOpen(!transcriptOpen)} className="flex items-center gap-2 hover:text-gray-200 transition-colors">
+                <span className={`w-1.5 h-1.5 rounded-full ${transcript.length > 0 ? 'bg-emerald-500' : 'bg-gray-600'}`} />
                 {Icons.transcript} Transcript ({transcript.length} entries)
-              </span>
-              <span className="text-[10px]">{transcriptOpen ? 'Hide ▼' : 'Show ▲'}</span>
-            </button>
+              </button>
+              <button onClick={() => setTranscriptOpen(!transcriptOpen)} className="text-[10px] hover:text-gray-200 transition-colors">
+                {transcriptOpen ? 'Hide ▼' : 'Show ▲'}
+              </button>
+            </div>
             {transcriptOpen && (
               <div ref={transcriptRef} className="px-3 py-3 overflow-y-auto overflow-x-hidden" style={{ maxHeight: '350px' }}>
                 {transcript.length === 0 ? (
-                  <p className="text-slate-500 text-xs italic">No transcript yet. Start speaking or typing to begin.</p>
+                  <p className="text-gray-500 text-xs italic">No transcript yet. Start speaking or typing to begin.</p>
                 ) : (
                   <div className="space-y-3">
                     {transcript.map((e, i) => (
-                      <div key={i} className="text-xs border-l-2 border-slate-700 pl-3 py-1">
+                      <div key={i} className="text-xs border-l-2 border-gray-800 pl-3 py-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className={`font-semibold ${e.speaker === 'DM' ? 'text-violet-400' : 'text-cyan-400'}`}>{e.speaker}</span>
-                          <span className="text-slate-600 text-[10px]">{e.timestamp}</span>
+                          <span className={`font-semibold ${e.speaker === 'DM' ? 'text-indigo-400' : 'text-emerald-400'}`}>{e.speaker}</span>
+                          <span className="text-gray-600 text-[10px]">{e.timestamp}</span>
                         </div>
-                        <div className="text-slate-300 leading-relaxed">{e.text}</div>
+                        <div className="text-gray-300 leading-relaxed">{e.text}</div>
                       </div>
                     ))}
                   </div>
@@ -2209,7 +2763,7 @@ If no changes, return empty arrays.`;
           <div className="flex gap-2">
             <input type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !processing && submit()}
               placeholder="DM: As you enter..." disabled={processing}
-              className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-violet-500" />
+              className="flex-1 bg-gray-900/90 backdrop-blur-md border border-gray-800 rounded-2xl px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors" />
             <Button variant="primary" onClick={submit} disabled={processing || !input.trim()}>{processing ? '...' : 'Send'}</Button>
           </div>
         </div>
@@ -2235,20 +2789,115 @@ If no changes, return empty arrays.`;
           onUpdate({ ...latest, dmContext: arc, updatedAt: new Date().toISOString() });
         }}
       />
-      <SettingsModal
-        isOpen={showSettings}
-        onClose={() => setShowSettings(false)}
-        settings={settings}
-        onSaveSettings={onSaveSettings}
-      />
-      <SessionReportModal
-        isOpen={showReport}
-        onClose={() => setShowReport(false)}
-        session={currentSession}
+      <ToolsPanel
+        isOpen={showTools}
+        onClose={() => setShowTools(false)}
+        campaign={campaign}
+        sessions={sessions}
+        currentSession={currentSession}
         cards={cards}
         settings={settings}
+        onSaveSettings={onSaveSettings}
         onGenerateReport={generateReport}
       />
+
+      {/* Void (Graveyard) Button - Bottom Left */}
+      <button
+        onClick={() => setShowVoid(true)}
+        className="fixed bottom-4 left-4 z-20 flex items-center gap-2 px-3 py-2 bg-gray-900/90 backdrop-blur-md border border-gray-800 rounded-lg text-gray-400 hover:text-white hover:border-gray-700 transition-all group"
+        title="The Void - Deleted cards"
+      >
+        <IconGhost2 size={18} className="text-gray-500 group-hover:text-purple-400 transition-colors" />
+        {voidCards.length > 0 && (
+          <span className="text-xs bg-purple-600/30 text-purple-300 px-1.5 py-0.5 rounded">
+            {voidCards.length}
+          </span>
+        )}
+      </button>
+
+      {/* Void Panel Modal */}
+      {showVoid && (
+        <>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40" onClick={() => setShowVoid(false)} />
+          <div className="fixed bottom-4 left-4 z-50 w-80 max-h-[60vh] bg-gray-900/95 backdrop-blur-md border border-gray-800 rounded-xl shadow-2xl flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+              <div className="flex items-center gap-2">
+                <IconGhost2 size={18} className="text-purple-400" />
+                <h3 className="font-semibold text-white text-sm">The Void</h3>
+                <span className="text-xs text-gray-500">({voidCards.length} cards)</span>
+              </div>
+              <button onClick={() => setShowVoid(false)} className="text-gray-500 hover:text-white transition-colors">
+                <IconX size={16} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3">
+              {voidCards.length === 0 ? (
+                <div className="text-center py-8">
+                  <IconGhost2 size={32} className="mx-auto text-gray-700 mb-2" />
+                  <p className="text-gray-500 text-xs">The Void is empty</p>
+                  <p className="text-gray-600 text-[10px] mt-1">Deleted cards will appear here</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {voidCards.map(card => {
+                    const typeConfig = CARD_TYPES[card.type] || CARD_TYPES.CHARACTER;
+                    const sessionName = sessions.find(s => s.id === card.voidedInSession)?.name || 'Unknown session';
+                    return (
+                      <div key={card.id} className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-3 group">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={`text-${typeConfig.color}-400`}>{Icons[typeConfig.icon]}</span>
+                              <span className="text-sm font-medium text-white truncate">{card.name}</span>
+                            </div>
+                            <div className="text-[10px] text-gray-500">
+                              Voided in {sessionName}
+                            </div>
+                            {card.notes && (
+                              <p className="text-xs text-gray-400 mt-1 line-clamp-2">{card.notes}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => restoreFromVoid(card.id)}
+                              className="p-1.5 rounded bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 transition-colors"
+                              title="Restore card"
+                            >
+                              <IconRefresh size={14} />
+                            </button>
+                            <button
+                              onClick={() => permanentlyDelete(card.id)}
+                              className="p-1.5 rounded bg-red-600/20 text-red-400 hover:bg-red-600/30 transition-colors"
+                              title="Delete permanently"
+                            >
+                              <IconTrash size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            {voidCards.length > 0 && (
+              <div className="px-4 py-2 border-t border-gray-800 bg-gray-900/50">
+                <button
+                  onClick={() => {
+                    if (confirm('Permanently delete all cards in The Void? This cannot be undone.')) {
+                      const latest = campaignRef.current;
+                      onUpdate({ ...latest, void: [], updatedAt: new Date().toISOString() });
+                    }
+                  }}
+                  className="w-full text-xs text-red-400/70 hover:text-red-400 py-1 transition-colors"
+                >
+                  Empty The Void
+                </button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 };
@@ -2290,7 +2939,7 @@ function AppCore() {
   const update = (updated) => setCampaigns(campaigns.map(c => c.id === updated.id ? updated : c));
   const saveDmContext = (ctx) => { if (active) update({ ...active, dmContext: ctx }); };
 
-  if (!campaignsLoaded || !settingsLoaded) return <div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="text-slate-400">Loading...</div></div>;
+  if (!campaignsLoaded || !settingsLoaded) return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><div className="text-gray-400">Loading...</div></div>;
 
   return (
     <>
@@ -2299,6 +2948,18 @@ function AppCore() {
       ) : (
         <CampaignsHome campaigns={campaigns} onSelect={setActiveId} onCreate={create} onDelete={del} settings={settings} onOpenSettings={() => setShowSettings(true)} />
       )}
+      {/* Settings panel for home screen (Account tab only) */}
+      <ToolsPanel
+        isOpen={showSettings && !active}
+        onClose={() => setShowSettings(false)}
+        campaign={null}
+        sessions={[]}
+        currentSession={null}
+        cards={[]}
+        settings={settings}
+        onSaveSettings={setSettings}
+        onGenerateReport={() => {}}
+      />
     </>
   );
 }
