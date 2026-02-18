@@ -34,10 +34,15 @@ import {
   IconGhost2,
   IconRefresh,
   IconDownload,
+  IconLogout,
 } from '@tabler/icons-react';
+import { useAuth } from './lib/auth';
+import * as dbOps from './lib/db';
+import * as aiService from './lib/ai';
+import { dbCardToFrontend, dbSessionToFrontend, dbTranscriptToFrontend, dbEventToFrontend, dbRosterToFrontend, dbCampaignToFrontend } from './lib/mappers';
 
 // ============================================
-// DM HUD v2.0 - Multi-Campaign + BYOK
+// DM HUD v3.0 - Multi-User + Supabase
 // ============================================
 
 // Error Boundary to catch crashes and prevent white screen
@@ -168,54 +173,8 @@ const RIFF_TEMPLATES = {
   ],
 };
 
-// Storage hook
-const useStorage = (key, defaultValue) => {
-  const [value, setValue] = useState(defaultValue);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const stored = localStorage.getItem(key);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          setValue(parsed);
-        }
-      } catch (e) {
-        console.error('❌ Storage load error:', e);
-        // If parse fails, clear the corrupted data and use default
-        try {
-          localStorage.removeItem(key);
-          console.log('🧹 Cleared corrupted storage for:', key);
-        } catch (clearError) {
-          console.error('Failed to clear storage:', clearError);
-        }
-      }
-      setLoaded(true);
-    };
-    load();
-  }, [key]);
-
-  const save = useCallback(async (newValue) => {
-    setValue(newValue);
-    try {
-      const serialized = JSON.stringify(newValue);
-      // Check size (localStorage limit is ~5-10MB depending on browser)
-      const sizeInMB = new Blob([serialized]).size / 1024 / 1024;
-      if (sizeInMB > 8) {
-        console.warn(`⚠️ Storage size warning: ${sizeInMB.toFixed(2)}MB - approaching browser limits`);
-      }
-      localStorage.setItem(key, serialized);
-    } catch (e) {
-      console.error('❌ Storage save error:', e);
-      if (e.name === 'QuotaExceededError') {
-        alert('Storage limit exceeded. Consider archiving old sessions or clearing data.');
-      }
-    }
-  }, [key]);
-
-  return [value, save, loaded];
-};
+// Storage hook removed — data now stored in Supabase
+// See src/lib/db.js for data access and src/hooks/useCampaign.js for React hooks
 
 // Utility components
 const Badge = ({ children, variant = 'default', size = 'md' }) => {
@@ -488,54 +447,14 @@ const ToolsPanel = ({ isOpen, onClose, campaign, sessions, currentSession, cards
     return merged;
   };
 
-  // AI polish pass for clean transcript
+  // AI polish pass for clean transcript — via Edge Function
   const polishTranscript = async (mergedEntries, isCampaign = false) => {
-    if (!settings.anthropicKey) throw new Error('Anthropic API key required');
-
-    const rawText = mergedEntries.map(e => {
-      const prefix = isCampaign && e.sessionName ? `[${e.sessionName}] ` : '';
-      return `${prefix}[${e.speaker}] ${e.text}`;
-    }).join('\n\n');
-
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': settings.anthropicKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20250514',
-        max_tokens: 8000,
-        messages: [{
-          role: 'user',
-          content: `You are cleaning up a D&D ${isCampaign ? 'campaign' : 'session'} transcript. Your job is ONLY to:
-1. Fix obvious transcription errors (e.g., "their" vs "there", run-on words)
-2. Add proper punctuation and capitalization
-3. Keep paragraphs separated by speaker
-4. Preserve EVERYTHING that was said - do not summarize, remove, or add content
-5. Keep speaker labels in [SPEAKER] format at the start of each paragraph
-${isCampaign ? '6. Keep session markers [Session Name] where they appear to separate sessions' : ''}
-
-Do NOT:
-- Add commentary or descriptions
-- Remove any dialogue, even if it seems unimportant
-- Change the meaning or tone of what was said
-- Add stage directions or narrative text
-
-Here is the raw transcript to clean up:
-
-${rawText}
-
-Return ONLY the cleaned transcript, nothing else.`
-        }]
-      })
+    const data = await aiService.polishTranscript({
+      campaignId: campaign?.id,
+      transcriptEntries: mergedEntries,
+      isCampaign,
     });
-
-    if (!response.ok) throw new Error('Failed to polish transcript');
-    const data = await response.json();
-    return data.content[0].text;
+    return data.polishedText;
   };
 
   const exportTranscript = async (scope = 'session') => {
@@ -867,7 +786,7 @@ const CampaignCard = ({ campaign, onClick, onDelete }) => {
 };
 
 // Campaigns Home
-const CampaignsHome = ({ campaigns, onSelect, onCreate, onDelete, settings, onOpenSettings }) => {
+const CampaignsHome = ({ campaigns, onSelect, onCreate, onDelete, settings, onOpenSettings, onSignOut, profile }) => {
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState('');
 
@@ -876,7 +795,13 @@ const CampaignsHome = ({ campaigns, onSelect, onCreate, onDelete, settings, onOp
       <header className="bg-gray-950/80 backdrop-blur-md border-b border-gray-800 px-6 py-4 sticky top-0 z-10">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-400 to-emerald-400 bg-clip-text text-transparent">DM HUD</h1>
-          <button onClick={onOpenSettings} className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors">{Icons.settings} Settings</button>
+          <div className="flex items-center gap-4">
+            {profile?.is_superuser && (
+              <a href="/admin" className="text-xs text-purple-400 hover:text-purple-300 transition-colors">Admin</a>
+            )}
+            <button onClick={onOpenSettings} className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors">{Icons.settings} Settings</button>
+            <button onClick={onSignOut} className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"><IconLogout size={16} /> Sign Out</button>
+          </div>
         </div>
       </header>
 
@@ -899,13 +824,13 @@ const CampaignsHome = ({ campaigns, onSelect, onCreate, onDelete, settings, onOp
           </div>
         )}
 
-        {(!settings.anthropicKey || !settings.deepgramKey) && (
+        {settings.keyMode === 'byok' && (!settings.anthropicKey || settings.anthropicKey === '__managed__') && (
           <div className="mt-8 p-4 bg-amber-900/20 border border-amber-500/30 rounded-lg">
             <div className="flex items-start gap-3">
               <span className="text-amber-400">{Icons.key}</span>
               <div>
-                <h4 className="font-medium text-amber-200 text-sm">API Keys Not Configured</h4>
-                <p className="text-xs text-amber-300/70 mt-1">Add your API keys in Settings to enable AI and transcription.</p>
+                <h4 className="font-medium text-amber-200 text-sm">API Keys Required</h4>
+                <p className="text-xs text-amber-300/70 mt-1">Your account is set to bring-your-own-key mode. Add your API keys in Settings to enable AI features.</p>
                 <button onClick={onOpenSettings} className="text-xs text-amber-400 hover:text-amber-300 mt-2 underline">Configure →</button>
               </div>
             </div>
@@ -1808,19 +1733,17 @@ const CreateCardModal = ({ isOpen, onClose, onCreate, cardType }) => {
 };
 
 // Campaign View
-const CampaignView = ({ campaign, onUpdate, onBack, settings, onSaveSettings }) => {
-  // Session management - initialize with backwards compatibility
-  const sessions = campaign.sessions || [{
-    id: `session-${Date.now()}`,
-    name: 'Session 1',
-    startTime: campaign.createdAt,
-    endTime: null,
-    transcript: campaign.transcript || [],
-    events: [],
-    isActive: true
-  }];
-  const activeSession = sessions.find(s => s.isActive) || sessions[sessions.length - 1];
+const CampaignView = ({ campaign, onUpdateLocal, onBack, settings, onSaveSettings, userId }) => {
+  // ── State: loaded from Supabase ──
+  const [sessions, setSessions] = useState([]);
+  const [allCards, setAllCards] = useState([]);
+  const [transcript, setTranscript] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [playerRoster, setPlayerRoster] = useState([]);
+  const [dmContext, setDmContext] = useState(campaign.dmContext || '');
+  const [dataLoaded, setDataLoaded] = useState(false);
 
+  // ── UI State ──
   const [mode, setMode] = useState('exploration');
   const [selected, setSelected] = useState(null);
   const [processing, setProcessing] = useState(false);
@@ -1828,731 +1751,438 @@ const CampaignView = ({ campaign, onUpdate, onBack, settings, onSaveSettings }) 
   const [input, setInput] = useState('');
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [createModalType, setCreateModalType] = useState(null);
-  const [currentSessionId, setCurrentSessionId] = useState(activeSession.id);
+  const [currentSessionId, setCurrentSessionId] = useState(null);
   const [showRoster, setShowRoster] = useState(false);
   const [showArc, setShowArc] = useState(false);
   const [showTools, setShowTools] = useState(false);
   const transcriptRef = useRef(null);
+  const [showVoid, setShowVoid] = useState(false);
 
-  // Keep a ref to always get the latest campaign state
-  const campaignRef = useRef(campaign);
+  // ── Load campaign data from Supabase ──
   useEffect(() => {
-    campaignRef.current = campaign;
-  }, [campaign]);
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const [sessionsData, cardsData, rosterData] = await Promise.all([
+          dbOps.fetchSessions(campaign.id),
+          dbOps.fetchCards(campaign.id),
+          dbOps.fetchRoster(campaign.id),
+        ]);
+
+        if (cancelled) return;
+
+        const frontendSessions = sessionsData.map(dbSessionToFrontend);
+        const frontendCards = cardsData.map(dbCardToFrontend);
+        const frontendRoster = rosterData.map(dbRosterToFrontend);
+
+        setSessions(frontendSessions);
+        setAllCards(frontendCards);
+        setPlayerRoster(frontendRoster);
+
+        // Set active session
+        const active = frontendSessions.find(s => s.isActive) || frontendSessions[frontendSessions.length - 1];
+        if (active) {
+          setCurrentSessionId(active.id);
+
+          // Load transcript and events for active session
+          const [transcriptData, eventsData] = await Promise.all([
+            dbOps.fetchTranscript(active.id),
+            dbOps.fetchEvents(active.id),
+          ]);
+
+          if (!cancelled) {
+            setTranscript(transcriptData.map(dbTranscriptToFrontend));
+            setEvents(eventsData.map(dbEventToFrontend));
+          }
+        }
+
+        setDataLoaded(true);
+      } catch (err) {
+        console.error('Failed to load campaign data:', err);
+        if (!cancelled) setDataLoaded(true);
+      }
+    };
+
+    load();
+    return () => { cancelled = true; };
+  }, [campaign.id]);
+
+  // Keep a ref to always get the latest state for AI processing
+  const stateRef = useRef({ allCards, sessions, transcript, events, playerRoster, dmContext, currentSessionId });
+  useEffect(() => {
+    stateRef.current = { allCards, sessions, transcript, events, playerRoster, dmContext, currentSessionId };
+  });
 
   // Throttling for AI requests - minimum 2 seconds between calls
   const lastAICallRef = useRef(0);
   const pendingTextRef = useRef([]);
   const throttleTimerRef = useRef(null);
 
-  const currentSession = sessions.find(s => s.id === currentSessionId) || activeSession;
-  const allCards = campaign.cards || [];
-  const voidCards = campaign.void || [];
-  const transcript = currentSession.transcript || [];
-  const dmContext = campaign.dmContext || '';
-  const playerRoster = campaign.playerRoster || [];
-  const [showVoid, setShowVoid] = useState(false);
+  const currentSession = sessions.find(s => s.id === currentSessionId) || sessions[sessions.length - 1];
+  const activeCards = allCards.filter(c => !c.voidedAt);
+  const voidCards = allCards.filter(c => c.voidedAt);
 
   // Session-based card filtering: show cards that existed at the time of the selected session
-  // Cards are visible if they were created in the current session or any previous session
   const getSessionIndex = (sessionId) => sessions.findIndex(s => s.id === sessionId);
   const currentSessionIndex = getSessionIndex(currentSessionId);
 
-  const cards = allCards.filter(card => {
-    // If card has no sessionId (legacy), always show it
+  const cards = activeCards.filter(card => {
     if (!card.sessionId) return true;
-    // Show card if it was created in this session or an earlier session
     const cardSessionIndex = getSessionIndex(card.sessionId);
     return cardSessionIndex <= currentSessionIndex;
   });
 
-  const save = (updates) => onUpdate({ ...campaignRef.current, ...updates, updatedAt: new Date().toISOString() });
+  if (!dataLoaded) {
+    return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><div className="text-gray-400">Loading campaign...</div></div>;
+  }
 
-  // Use campaignRef.current to always get latest state and avoid stale closure issues
+  // ── Card CRUD operations (write to Supabase) ──
+
   const updateCard = (id, updates) => {
-    const latest = campaignRef.current;
-    onUpdate({ ...latest, cards: latest.cards.map(c => c.id === id ? { ...c, ...updates } : c), updatedAt: new Date().toISOString() });
+    // Optimistic local update
+    setAllCards(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+    // Async write to Supabase
+    dbOps.updateCard(id, updates).catch(err => console.error('Failed to update card:', err));
   };
 
-  const deleteCard = (id) => {
-    const latest = campaignRef.current;
-    const cardToDelete = latest.cards.find(c => c.id === id);
-    if (!cardToDelete) return;
-
-    // Move to Void instead of permanent deletion
-    const voidedCard = {
-      ...cardToDelete,
-      voidedAt: new Date().toISOString(),
-      voidedInSession: currentSessionId
-    };
-
-    onUpdate({
-      ...latest,
-      cards: latest.cards.filter(c => c.id !== id),
-      void: [...(latest.void || []), voidedCard],
-      updatedAt: new Date().toISOString()
-    });
+  const deleteCard = async (id) => {
+    // Optimistic: mark as voided locally
+    setAllCards(prev => prev.map(c =>
+      c.id === id ? { ...c, voidedAt: new Date().toISOString(), voidedInSession: currentSessionId } : c
+    ));
     if (selected?.id === id) setSelected(null);
+    try {
+      await dbOps.voidCard(id, currentSessionId);
+    } catch (err) {
+      console.error('Failed to void card:', err);
+    }
   };
 
-  const restoreFromVoid = (id) => {
-    const latest = campaignRef.current;
-    const cardToRestore = (latest.void || []).find(c => c.id === id);
-    if (!cardToRestore) return;
-
-    // Remove void metadata and restore
-    const { voidedAt, voidedInSession, ...restoredCard } = cardToRestore;
-
-    onUpdate({
-      ...latest,
-      cards: [...latest.cards, restoredCard],
-      void: (latest.void || []).filter(c => c.id !== id),
-      updatedAt: new Date().toISOString()
-    });
+  const restoreFromVoid = async (id) => {
+    setAllCards(prev => prev.map(c =>
+      c.id === id ? { ...c, voidedAt: null, voidedInSession: null } : c
+    ));
+    try {
+      await dbOps.restoreCard(id);
+    } catch (err) {
+      console.error('Failed to restore card:', err);
+    }
   };
 
-  const permanentlyDelete = (id) => {
-    const latest = campaignRef.current;
-    onUpdate({
-      ...latest,
-      void: (latest.void || []).filter(c => c.id !== id),
-      updatedAt: new Date().toISOString()
-    });
+  const permanentlyDelete = async (id) => {
+    setAllCards(prev => prev.filter(c => c.id !== id));
+    try {
+      await dbOps.permanentlyDeleteCard(id);
+    } catch (err) {
+      console.error('Failed to permanently delete card:', err);
+    }
   };
 
-  const addCard = (card, genesisText = null) => {
-    const latest = campaignRef.current;
-    const nc = {
-      ...card,
-      id: `card-${Date.now()}-${Math.random().toString(36).substr(2,9)}`,
-      riffs: {},
-      canonFacts: card.canonFacts || [],
-      status: card.status || [],
-      genesis: genesisText || null,  // Store the transcript snippet where this was introduced
-      sessionId: currentSessionId,  // Track which session created this card
-      createdAt: new Date().toISOString()
-    };
-    onUpdate({ ...latest, cards: [...latest.cards, nc], updatedAt: new Date().toISOString() });
-    return nc;
+  const addCard = async (card, genesisText = null) => {
+    try {
+      const dbCard = await dbOps.createCard(campaign.id, currentSessionId, {
+        ...card,
+        genesis: genesisText,
+      });
+      const frontendCard = dbCardToFrontend(dbCard);
+      setAllCards(prev => [...prev, frontendCard]);
+      return frontendCard;
+    } catch (err) {
+      console.error('Failed to create card:', err);
+      // Fallback: add optimistically with temp ID
+      const nc = {
+        ...card,
+        id: `temp-${Date.now()}`,
+        riffs: {},
+        canonFacts: card.canonFacts || [],
+        status: card.status || [],
+        genesis: genesisText,
+        sessionId: currentSessionId,
+        createdAt: new Date().toISOString()
+      };
+      setAllCards(prev => [...prev, nc]);
+      return nc;
+    }
   };
 
   const quickHP = (id, d) => {
-    const latest = campaignRef.current;
-    onUpdate({ ...latest, cards: latest.cards.map(c => c.id === id && c.hp ? { ...c, hp: { ...c.hp, current: Math.max(0, Math.min(c.hp.max, c.hp.current + d)) } } : c), updatedAt: new Date().toISOString() });
+    setAllCards(prev => prev.map(c =>
+      c.id === id && c.hp
+        ? { ...c, hp: { ...c.hp, current: Math.max(0, Math.min(c.hp.max, c.hp.current + d)) } }
+        : c
+    ));
+    // Find the card to get current HP for correct update
+    const card = allCards.find(c => c.id === id);
+    if (card?.hp) {
+      const newCurrent = Math.max(0, Math.min(card.hp.max, card.hp.current + d));
+      dbOps.updateCard(id, { hp: { current: newCurrent, max: card.hp.max } }).catch(err => console.error('Failed to update HP:', err));
+    }
   };
 
   const reorderCards = (draggedId, targetId) => {
-    const latest = campaignRef.current;
-    const cards = [...latest.cards];
-
-    const draggedIdx = cards.findIndex(c => c.id === draggedId);
-    const targetIdx = cards.findIndex(c => c.id === targetId);
-
-    if (draggedIdx === -1 || targetIdx === -1) return;
-
-    // Remove dragged card and insert at target position
-    const [draggedCard] = cards.splice(draggedIdx, 1);
-    cards.splice(targetIdx, 0, draggedCard);
-
-    onUpdate({ ...latest, cards, updatedAt: new Date().toISOString() });
+    // Reorder is local-only for now (card order not stored in DB as a separate field)
+    setAllCards(prev => {
+      const cards = [...prev];
+      const draggedIdx = cards.findIndex(c => c.id === draggedId);
+      const targetIdx = cards.findIndex(c => c.id === targetId);
+      if (draggedIdx === -1 || targetIdx === -1) return prev;
+      const [draggedCard] = cards.splice(draggedIdx, 1);
+      cards.splice(targetIdx, 0, draggedCard);
+      return cards;
+    });
   };
 
   const getCharacterEvents = (characterName) => {
-    const latest = campaignRef.current;
-    const allEvents = [];
-
-    // Collect events from all sessions
-    (latest.sessions || []).forEach(session => {
-      (session.events || []).forEach(event => {
-        if (event.character.toLowerCase() === characterName.toLowerCase()) {
-          allEvents.push({ ...event, sessionId: session.id, sessionName: session.name });
-        }
-      });
-    });
-
-    // Sort by timestamp, newest first
-    return allEvents.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    // For now, return events from the current session
+    // TODO: load events from all sessions for cross-session view
+    return events
+      .filter(e => e.character?.toLowerCase() === characterName?.toLowerCase())
+      .map(e => ({ ...e, sessionId: currentSessionId, sessionName: currentSession?.name }))
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   };
 
   const genRiffFn = async (card, template) => {
-    if (!settings.anthropicKey) return;
     setGenRiff(true);
     try {
-      const latest = campaignRef.current;
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': settings.anthropicKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({
-          model: 'claude-haiku-4-5',
-          max_tokens: 150,
-          messages: [{
-            role: 'user',
-            content: `You are assisting a Dungeon Master running a D&D 5.5e campaign. Generate creative, atmospheric ${template.prompt} for ${card.name}, a ${card.type} in their campaign.
-
-Existing notes: ${card.notes || 'None'}
-DM's secret context: ${latest.dmContext || 'None'}
-
-Return ONLY the ${template.label} in 1-2 vivid sentences. Be creative and evocative. This is for a tabletop RPG game.`
-          }]
-        })
+      const data = await aiService.generateRiff({
+        campaignId: campaign.id,
+        cardName: card.name,
+        cardType: card.type,
+        cardNotes: card.notes || '',
+        dmContext: stateRef.current.dmContext || '',
+        templatePrompt: template.prompt,
+        templateLabel: template.label,
+        templateKey: template.key,
       });
-      const data = await res.json();
-      const val = data.content?.[0]?.text?.trim();
+      const val = data?.riffText?.trim();
       if (val) {
-        const latestNow = campaignRef.current;
-        onUpdate({ ...latestNow, cards: latestNow.cards.map(c => c.id === card.id ? { ...c, riffs: { ...c.riffs, [template.key]: val } } : c), updatedAt: new Date().toISOString() });
+        const updatedRiffs = { ...(card.riffs || {}), [template.key]: val };
+        updateCard(card.id, { riffs: updatedRiffs });
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error('Riff generation error:', e); }
     setGenRiff(false);
   };
 
-  const generateReport = async (session, cards) => {
-    if (!settings.anthropicKey) throw new Error('API key required');
+  const generateReport = async (session, reportCards) => {
+    const sessionTranscript = transcript; // current transcript
+    const sessionEvents = events;
+    const pcCards = reportCards.filter(c => c.isPC);
 
-    const sessionTranscript = session.transcript || [];
-    const sessionEvents = session.events || [];
-    const pcCards = cards.filter(c => c.isPC);
-
-    // Build transcript summary
-    const transcriptText = sessionTranscript.map(t => `${t.speaker}: ${t.text}`).join('\n');
-
-    // Build events summary
-    const eventsText = sessionEvents.map(e => `${e.character} - ${e.type}: ${e.detail}${e.outcome ? ` (${e.outcome})` : ''}`).join('\n');
-
-    const prompt = `You are a D&D session chronicler. Generate a session report from this gameplay transcript and events.
-
-SESSION: ${session.name}
-PLAYER CHARACTERS: ${pcCards.map(c => c.name).join(', ')}
-
-TRANSCRIPT:
-${transcriptText}
-
-KEY EVENTS:
-${eventsText}
-
-Generate a JSON report with:
-{
-  "recap": "2-3 paragraph narrative summary of what happened in the session",
-  "mvp": {"character": "name", "reason": "why they were MVP this session"},
-  "highlights": ["3-5 memorable moments from the session"],
-  "quotes": [{"character": "name", "text": "memorable quote"}],
-  "events": [{"character": "name", "detail": "significant event"}]
-}
-
-Focus on storytelling, dramatic moments, and player achievements. Be concise but engaging.`;
-
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': settings.anthropicKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5',
-        max_tokens: 2048,
-        messages: [{ role: 'user', content: prompt }]
-      })
+    const data = await aiService.generateReport({
+      campaignId: campaign.id,
+      sessionId: session.id,
+      transcript: sessionTranscript.map(t => `${t.speaker}: ${t.text}`).join('\n'),
+      events: sessionEvents.map(e => `${e.character} - ${e.type}: ${e.detail}${e.outcome ? ` (${e.outcome})` : ''}`).join('\n'),
+      pcNames: pcCards.map(c => c.name),
     });
 
-    if (!res.ok) throw new Error(`API Error: ${res.status}`);
-
-    const data = await res.json();
-    let response = data.content?.[0]?.text?.trim() || '';
-
-    if (response.startsWith('```')) {
-      response = response.replace(/```json?\n?/g, '').replace(/```$/g, '').trim();
-    }
-
-    return JSON.parse(response);
+    return data.report;
   };
 
   // Helper to update current session
   const updateSession = (sessionUpdates) => {
-    const latest = campaignRef.current;
-    const updatedSessions = (latest.sessions || sessions).map(s =>
+    setSessions(prev => prev.map(s =>
       s.id === currentSessionId ? { ...s, ...sessionUpdates } : s
-    );
-    onUpdate({
-      ...latest,
-      sessions: updatedSessions,
-      updatedAt: new Date().toISOString()
-    });
+    ));
+    dbOps.updateSession(currentSessionId, sessionUpdates).catch(err => console.error('Failed to update session:', err));
   };
 
-  // Static system prompt for caching - this rarely changes
-  const SYSTEM_PROMPT = `You are analyzing D&D gameplay transcript to extract and update entities.
+  // SYSTEM_PROMPT is now server-side in the ai-process Edge Function
 
-INSTRUCTIONS:
-1. NEVER create CHARACTER cards for real PLAYER names (left side of roster arrows) - these are out-of-game identities
-2. DO create CHARACTER cards for in-game character names (right side of roster arrows) on FIRST mention if they don't exist yet
-3. Entity TYPE rules:
-   - CHARACTER: ALL people/creatures (goblins, orcs, bandits, thieves, NPCs, party members, monsters, everyone)
-     - Set "isHostile": true if attacking, aggressive, ambushing, or clearly enemy combatants
-     - Set "isHostile": false if friendly/neutral/not yet hostile
-     - Set "inCombat": true when they engage in combat (attacking OR being attacked OR ambushing)
-   - LOCATION: Places (taverns, caves, cities, dungeons)
-   - ITEM: Objects (weapons, treasure, quest items, artifacts)
-   - PLOT: Story threads, mysteries, quests
-4. Combat state management - IMPORTANT:
-   - "ambushed by goblins" → CREATE goblins with {"inCombat": true, "isHostile": true} AND trigger modeSwitch: "combat"
-   - "three goblins attack" → CREATE goblins with {"inCombat": true, "isHostile": true}
-   - "tall goblin draws sword and charges" → UPDATE that goblin: {"inCombat": true, "isHostile": true}
-   - "party negotiates successfully" → UPDATE enemies: {"inCombat": false, "isHostile": false}
-   - When combat starts, BOTH attackers AND defenders get "inCombat": true
-   - AMBUSH = combat. Ambushing creatures are ALWAYS hostile and in combat.
-5. If a character name or alias from the roster is mentioned AGAIN, update the EXISTING character card (don't create duplicates)
-6. CRITICAL - Entity clarification patterns (UPDATE existing, DON'T create new):
-   - "the barmaid introduces herself as Greta" → UPDATE existing "barmaid" with name: "Greta"
-   - "the tall goblin in the middle" → UPDATE existing goblin with description
-   - Look at RECENT CONTEXT - if a generic term was JUST mentioned, this is likely a clarification
-7. For multiple creatures (e.g., "three goblins", "six thieves"), use "count" field (count: 3, count: 6)
-8. Only create NEW entities if they're genuinely new, not clarifications of recent mentions
-9. IMPORTANT: Detect HP changes from phrases like:
-   - "X takes 5 damage" → {"name": "X", "damage": 5}
-   - "The orc did 3 points of damage to Y" → {"name": "Y", "damage": 3}
-   - "damaged someone for 2 points" (use context to identify who took damage)
-   - "X deals 8 damage to Y" → {"name": "Y", "damage": 8}
-   - "heals for 10" → {"name": "X", "healing": 10}
-10. Extract D&D 5.5e stats when mentioned:
-   - Ability scores (STR, DEX, CON, INT, WIS, CHA): "Kermit has 18 charisma" → update CHARACTER with stats: {CHA: 18}
-   - AC, Level, Class: "level 5 barbarian with AC 16" → level: 5, class: "Barbarian", ac: 16
-11. IMPORTANT: Extract character events/milestones:
-   - Ability checks: "Kermit rolls 18 on persuasion" → {"character": "Kermit", "type": "check", "detail": "Persuasion 18", "outcome": "success"}
-   - Saving throws: "Clara fails her DEX save" → {"character": "Clara", "type": "save", "detail": "DEX save", "outcome": "fail"}
-   - Attack rolls: "natural 20!" → {"character": "X", "type": "attack", "detail": "Natural 20", "outcome": "critical"}
-   - Discoveries: "finds a secret door" → {"character": "X", "type": "discovery", "detail": "Secret door"}
-   - Level ups: "reaches level 5" → {"character": "X", "type": "levelup", "detail": "Level 5"}
-   - Story moments: "makes a deal with the demon" → {"character": "X", "type": "story", "detail": "Deal with demon"}
-
-Return ONLY valid JSON (no markdown):
-{
-  "newCards": [
-    {"type": "CHARACTER", "name": "Greta", "notes": "Innkeeper", "isCanon": true, "isPC": false, "inParty": false, "isHostile": false, "inCombat": false, "count": 1},
-    {"type": "CHARACTER", "name": "Goblin", "notes": "Goblins ambushing on the road", "isCanon": true, "isHostile": true, "inCombat": true, "count": 3}
-  ],
-  "cardUpdates": [
-    {"name": "Goblin 2", "updates": {"notes": "Tall goblin in the middle with broadsword"}},
-    {"name": "Gargamel Vincent", "updates": {"inCombat": true}}
-  ],
-  "hpChanges": [
-    {"name": "Everett", "damage": 5}
-  ],
-  "statusChanges": [
-    {"name": "Clara", "addStatus": ["Poisoned"]}
-  ],
-  "events": [
-    {"character": "Kermit", "type": "check", "detail": "Persuasion 18", "outcome": "success"},
-    {"character": "Clara", "type": "discovery", "detail": "Found ancient tome"}
-  ],
-  "modeSwitch": "combat"
-}
-
-- newCards: EVERYTHING is type "CHARACTER" (goblins, thieves, NPCs, monsters, everyone!)
-  - "three goblins appear" → {"type": "CHARACTER", "name": "Goblin", "count": 3, "isHostile": false, "inCombat": false} (creates Goblin 1-3)
-  - "ambushed by goblins" → {"type": "CHARACTER", "name": "Goblin", "count": 3, "isHostile": true, "inCombat": true} (hostile + in combat!)
-  - Set "isHostile": true if attacking, ambushing, aggressive, or enemy combatants
-  - Set "inCombat": true if engaged in combat, attacking, or ambushing
-  - Set "isPC": true for player characters, "inParty": true if traveling with party
-- cardUpdates: UPDATE existing cards with combat state changes
-  - "tall goblin charges" → UPDATE {"inCombat": true, "isHostile": true}
-  - "party negotiates" → UPDATE {"inCombat": false, "isHostile": false}
-  - Combat ends → UPDATE all combatants: {"inCombat": false}
-- hpChanges: damage/healing with character names
-- statusChanges: D&D 5.5e conditions
-- modeSwitch: "combat" when combat starts, null otherwise
-
-If no changes, return empty arrays.`;
-
-  // Core AI processing function (called after throttle)
+  // Core AI processing function — calls Edge Function instead of direct Anthropic API
   const executeAIProcessing = async (textsToProcess) => {
-    if (!settings.anthropicKey) {
-      console.log('⚠️ No Anthropic API key - skipping AI processing');
-      return;
-    }
-
-    // Combine multiple texts if batched
     const combinedText = textsToProcess.join(' | ');
-
     setProcessing(true);
+
     try {
-      console.log(`🤖 Processing ${textsToProcess.length} transcript(s):`, combinedText.substring(0, 100) + '...');
+      console.log(`🤖 Processing ${textsToProcess.length} transcript(s) via Edge Function`);
 
-      // Get latest state for AI prompt
-      const latestForPrompt = campaignRef.current;
+      const state = stateRef.current;
+      const currentCards = state.allCards.filter(c => !c.voidedAt);
 
-      // Build context-efficient summary of existing cards
-      const existingCardsSummary = latestForPrompt.cards.map(c => {
+      // Build context for the Edge Function
+      const existingCards = currentCards.map(c => {
         const facts = (c.canonFacts || []).join('; ');
         return `${c.name} (${c.type}): ${c.notes || ''}${facts ? ' | ' + facts : ''}`;
       }).join('\n') || 'None';
 
-      // Build player roster summary to prevent duplicates
-      const currentRoster = latestForPrompt.playerRoster || playerRoster || [];
-      const rosterSummary = currentRoster.map(p => {
-        const aliases = p.aliases && p.aliases.length ? ` (aliases: ${p.aliases.join(', ')})` : '';
+      const roster = (state.playerRoster || []).map(p => {
+        const aliases = p.aliases?.length ? ` (aliases: ${p.aliases.join(', ')})` : '';
         return `- Player: ${p.playerName} → Character: ${p.characterName}${aliases}`;
       }).join('\n') || 'None defined';
 
-      // Get recent transcript context (last 5 entries for context continuity)
-      const currentSessions = latestForPrompt.sessions || sessions;
-      const session = currentSessions.find(s => s.id === currentSessionId);
-      const sessionTranscript = session?.transcript || [];
-      const recentTranscript = sessionTranscript.slice(-5).map(t => `${t.speaker}: ${t.text}`).join('\n');
+      const recentTranscript = (state.transcript || []).slice(-5).map(t => `${t.speaker}: ${t.text}`).join('\n');
 
-      // User message with dynamic context
-      const userPrompt = `PLAYER ROSTER (DO NOT create cards for these real player names - only their character names):
-${rosterSummary}
-
-EXISTING ENTITIES:
-${existingCardsSummary}
-
-RECENT CONTEXT:
-${recentTranscript}
-
-NEW TRANSCRIPT: ${combinedText}
-
-DM SECRET CONTEXT: ${latestForPrompt.dmContext || 'None'}`;
-
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': settings.anthropicKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
-        body: JSON.stringify({
-          model: 'claude-haiku-4-5',
-          max_tokens: 1024,
-          // Use system prompt with cache_control for prompt caching
-          system: [
-            {
-              type: 'text',
-              text: SYSTEM_PROMPT,
-              cache_control: { type: 'ephemeral' }
-            }
-          ],
-          messages: [{ role: 'user', content: userPrompt }]
-        })
+      // Call Edge Function
+      const aiResult = await aiService.processTranscript({
+        campaignId: campaign.id,
+        sessionId: state.currentSessionId,
+        texts: textsToProcess,
+        existingCards,
+        roster,
+        recentTranscript,
+        dmContext: state.dmContext || '',
       });
 
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error('❌ API Error:', res.status, errorText);
-        throw new Error(`API Error: ${res.status}`);
-      }
+      const ai = aiResult.result;
+      console.log('✅ AI result from Edge Function:', ai);
 
-      const data = await res.json();
-      let response = data.content?.[0]?.text?.trim() || '';
-      console.log('📝 AI Response:', response);
-
-      if (response.startsWith('```')) response = response.replace(/```json?\n?/g, '').replace(/```$/g, '').trim();
-
-      const ai = JSON.parse(response);
-      console.log('✅ Parsed AI result:', ai);
-
-      // Handle HP changes
+      // Apply HP changes
       if (ai.hpChanges?.length) {
-        console.log(`💔 Processing ${ai.hpChanges.length} HP changes:`, ai.hpChanges);
-        const latestForHP = campaignRef.current;
-
+        const latestCards = stateRef.current.allCards;
         ai.hpChanges.forEach(change => {
-          console.log(`  Looking for card: "${change.name}"`);
-          const card = latestForHP.cards.find(c =>
-            c.name.toLowerCase() === change.name.toLowerCase()
-          );
-
-          if (card && card.hp) {
+          const card = latestCards.find(c => c.name.toLowerCase() === change.name.toLowerCase());
+          if (card?.hp) {
             const delta = change.damage ? -change.damage : (change.healing || 0);
             const newCurrent = Math.max(0, Math.min(card.hp.max, card.hp.current + delta));
-            console.log(`  ✅ ${card.name}: ${card.hp.current} → ${newCurrent} (${delta > 0 ? '+' : ''}${delta})`);
             updateCard(card.id, { hp: { ...card.hp, current: newCurrent } });
-          } else if (card) {
-            console.log(`  ⚠️ Found "${card.name}" but it has no HP (current HP: ${JSON.stringify(card.hp)})`);
-          } else {
-            console.log(`  ⚠️ Could not find any card matching: "${change.name}"`);
-            console.log(`  Available cards:`, latestForHP.cards.map(c => c.name));
           }
         });
       }
 
-      // Handle status changes
+      // Apply status changes
       if (ai.statusChanges?.length) {
-        console.log(`🎭 Processing ${ai.statusChanges.length} status changes`);
-        const latestForStatus = campaignRef.current;
-
+        const latestCards = stateRef.current.allCards;
         ai.statusChanges.forEach(change => {
-          const card = latestForStatus.cards.find(c =>
-            c.name.toLowerCase() === change.name.toLowerCase()
-          );
-
+          const card = latestCards.find(c => c.name.toLowerCase() === change.name.toLowerCase());
           if (card) {
             let newStatus = [...(card.status || [])];
-
-            if (change.addStatus) {
-              change.addStatus.forEach(s => {
-                if (!newStatus.includes(s)) {
-                  newStatus.push(s);
-                  console.log(`  ${card.name}: +${s}`);
-                }
-              });
-            }
-
-            if (change.removeStatus) {
-              change.removeStatus.forEach(s => {
-                newStatus = newStatus.filter(existing => existing !== s);
-                console.log(`  ${card.name}: -${s}`);
-              });
-            }
-
+            if (change.addStatus) change.addStatus.forEach(s => { if (!newStatus.includes(s)) newStatus.push(s); });
+            if (change.removeStatus) change.removeStatus.forEach(s => { newStatus = newStatus.filter(x => x !== s); });
             updateCard(card.id, { status: newStatus });
-          } else {
-            console.log(`  ⚠️ Could not find card: ${change.name}`);
           }
         });
       }
 
-      // Handle events/milestones
+      // Record events to Supabase
       if (ai.events?.length) {
-        console.log(`🎯 Recording ${ai.events.length} character events`);
-        const latestForEvents = campaignRef.current;
-        const currentSessions = latestForEvents.sessions || sessions;
-        const session = currentSessions.find(s => s.id === currentSessionId);
+        const newEvents = ai.events.map(event => ({
+          ...event,
+          timestamp: new Date().toISOString(),
+          id: `temp-event-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        }));
+        setEvents(prev => [...prev, ...newEvents]);
 
-        if (session) {
-          const newEvents = ai.events.map(event => ({
-            ...event,
-            timestamp: new Date().toISOString(),
-            id: `event-${Date.now()}-${Math.random().toString(36).substr(2,9)}`
-          }));
-
-          const updatedSessions = currentSessions.map(s =>
-            s.id === currentSessionId
-              ? { ...s, events: [...(s.events || []), ...newEvents] }
-              : s
-          );
-
-          onUpdate({
-            ...latestForEvents,
-            sessions: updatedSessions,
-            updatedAt: new Date().toISOString()
-          });
-
-          newEvents.forEach(evt => {
-            console.log(`  📌 ${evt.character}: ${evt.type} - ${evt.detail}`);
-          });
-        }
+        // Async save to DB
+        Promise.all(ai.events.map(e =>
+          dbOps.addEvent(state.currentSessionId, e)
+        )).catch(err => console.error('Failed to save events:', err));
       }
 
-      // Handle card updates
+      // Apply card updates
       if (ai.cardUpdates?.length) {
-        console.log(`🔄 Updating ${ai.cardUpdates.length} existing cards`);
-        const latestForUpdates = campaignRef.current;
+        const latestCards = stateRef.current.allCards;
+        const cardsToCreate = [];
 
-        const cardsToCreateFromUpdates = [];
-
-        ai.cardUpdates.forEach(update => {
-          const existingCard = latestForUpdates.cards.find(c =>
-            c.name.toLowerCase() === update.name.toLowerCase()
-          );
-
-          if (existingCard) {
-            console.log(`  Updating "${existingCard.name}" with:`, update.updates);
-
-            // Apply updates to existing card (don't merge notes, replace them)
-            const updatedCard = {
-              ...existingCard,
-              ...update.updates
-            };
-
-            updateCard(existingCard.id, updatedCard);
+        ai.cardUpdates.forEach(upd => {
+          const existing = latestCards.find(c => c.name.toLowerCase() === upd.name.toLowerCase());
+          if (existing) {
+            updateCard(existing.id, upd.updates);
           } else {
-            // Card doesn't exist - create it instead of silently failing
-            console.log(`  ⚠️ Card "${update.name}" not found, creating new card instead`);
-            cardsToCreateFromUpdates.push({
+            cardsToCreate.push({
               type: 'CHARACTER',
-              name: update.name,
-              notes: update.updates?.notes || '',
+              name: upd.name,
+              notes: upd.updates?.notes || '',
               isCanon: true,
               isPC: false,
               inParty: false,
-              isHostile: update.updates?.isHostile || false,
-              inCombat: update.updates?.inCombat || false,
-              ...update.updates
+              isHostile: upd.updates?.isHostile || false,
+              inCombat: upd.updates?.inCombat || false,
+              ...upd.updates,
+              genesis: combinedText,
             });
           }
         });
 
-        // Create any cards that were referenced in updates but didn't exist
-        if (cardsToCreateFromUpdates.length > 0) {
-          const latestForNewCards = campaignRef.current;
-          const newCardsToAdd = cardsToCreateFromUpdates
-            .filter(c => !latestForNewCards.cards.some(x => x.name.toLowerCase() === c.name.toLowerCase()))
-            .map(c => ({
-              ...c,
-              id: `card-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              riffs: {},
-              canonFacts: [],
-              status: [],
-              sessionId: currentSessionId,  // Track which session created this card
-              genesis: combinedText,  // Store the transcript that created this card
-              createdAt: new Date().toISOString()
-            }));
-
-          if (newCardsToAdd.length > 0) {
-            console.log(`  ➕ Creating ${newCardsToAdd.length} cards from failed updates`);
-            onUpdate({
-              ...latestForNewCards,
-              cards: [...latestForNewCards.cards, ...newCardsToAdd],
-              updatedAt: new Date().toISOString()
-            });
+        // Create cards that didn't exist
+        for (const cardData of cardsToCreate) {
+          const latestNow = stateRef.current.allCards;
+          if (!latestNow.some(c => c.name.toLowerCase() === cardData.name.toLowerCase())) {
+            await addCard(cardData, combinedText);
           }
         }
       }
 
-      // Handle new cards
+      // Create new cards
       if (ai.newCards?.length) {
-        console.log(`➕ Creating new cards from ${ai.newCards.length} definitions`);
+        const latestCards = stateRef.current.allCards;
 
-        // Get latest state again before creating cards
-        const latestForCards = campaignRef.current;
-
-        // Expand cards with count > 1 into multiple cards
+        // Expand cards with count > 1
         const expandedCards = ai.newCards.flatMap(c => {
           const count = c.count || 1;
           if (count > 1) {
-            // Create multiple cards (e.g., "Orc 1", "Orc 2", "Orc 3")
-            console.log(`  Expanding "${c.name}" into ${count} cards`);
-            return Array.from({ length: count }, (_, i) => ({
-              ...c,
-              name: `${c.name} ${i + 1}`,
-              count: undefined
-            }));
+            return Array.from({ length: count }, (_, i) => ({ ...c, name: `${c.name} ${i + 1}`, count: undefined }));
           }
           return [{ ...c, count: undefined }];
         });
 
-        // Batch create all new cards at once to avoid race conditions
-        const newCardsToAdd = expandedCards
-          .filter(c => {
-            const isDuplicate = latestForCards.cards.some(x => x.name.toLowerCase() === c.name.toLowerCase());
-            if (isDuplicate) {
-              console.log('  Skipping duplicate:', c.name);
-              return false;
-            }
-            console.log('  Will create card:', c.name);
-            return true;
-          })
-          .map(c => ({
-            ...c,
-            id: `card-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            riffs: {},
-            canonFacts: c.canonFacts || [],
-            status: c.status || [],
-            genesis: combinedText,  // Store the transcript that created this card
-            sessionId: currentSessionId,  // Track which session created this card
-            createdAt: new Date().toISOString(),
-            inCombat: mode === 'combat' && (c.type === 'ENEMY' || c.type === 'CHARACTER') // Auto-add to combat if in combat mode
-          }));
-
-        if (newCardsToAdd.length > 0) {
-          console.log(`  Adding ${newCardsToAdd.length} cards in batch`);
-          onUpdate({
-            ...latestForCards,
-            cards: [...latestForCards.cards, ...newCardsToAdd],
-            updatedAt: new Date().toISOString()
-          });
+        for (const c of expandedCards) {
+          if (!latestCards.some(x => x.name.toLowerCase() === c.name.toLowerCase())) {
+            await addCard({
+              ...c,
+              inCombat: mode === 'combat' && c.type === 'CHARACTER' ? true : (c.inCombat || false),
+            }, combinedText);
+          }
         }
       }
 
-      // Handle combatants - add characters/enemies to combat view
+      // Handle combatants
       if (ai.combatants?.length) {
-        console.log(`⚔️ Adding ${ai.combatants.length} combatants to combat view:`, ai.combatants);
-        const latestForCombat = campaignRef.current;
-
+        const latestCards = stateRef.current.allCards;
         ai.combatants.forEach(name => {
-          const card = latestForCombat.cards.find(c =>
-            (c.type === 'CHARACTER' || c.type === 'ENEMY') && c.name.toLowerCase() === name.toLowerCase()
-          );
-
-          if (card && !card.inCombat) {
-            console.log(`  ⚔️ Adding ${card.name} (${card.type}) to combat`);
-            updateCard(card.id, { inCombat: true });
-          } else if (!card) {
-            console.log(`  ⚠️ Combatant not found: ${name}`);
-          }
+          const card = latestCards.find(c => c.name.toLowerCase() === name.toLowerCase());
+          if (card && !card.inCombat) updateCard(card.id, { inCombat: true });
         });
       }
 
-      if (!ai.newCards?.length && !ai.cardUpdates?.length && !ai.hpChanges?.length && !ai.statusChanges?.length) {
-        console.log('ℹ️ No changes to make');
-      }
       if (ai.modeSwitch) {
-        console.log('🔄 Switching mode to:', ai.modeSwitch);
         setMode(ai.modeSwitch);
       }
     } catch (e) {
       console.error('❌ AI processing error:', e);
-      console.error('Stack:', e.stack);
     }
     setProcessing(false);
   };
 
-  // Throttled processAI - saves transcript immediately, batches AI calls
+  // Throttled processAI — saves transcript to Supabase immediately, batches AI calls
   const processAI = async (text) => {
-    // Always save transcript first - use campaignRef to get latest state
     const ts = new Date().toLocaleTimeString();
     const speaker = text.toLowerCase().startsWith('dm:') ? 'DM' : 'Player';
     const txt = text.replace(/^(dm:|player:)\s*/i, '');
 
-    // Get latest campaign state and append to transcript in current session
-    const latest = campaignRef.current;
-    const currentSessions = latest.sessions || sessions;
-    const updatedSessions = currentSessions.map(s =>
-      s.id === currentSessionId
-        ? { ...s, transcript: [...(s.transcript || []), { speaker, text: txt, timestamp: ts }] }
-        : s
+    // Save transcript to local state immediately
+    const entry = { speaker, text: txt, timestamp: ts, id: `temp-${Date.now()}` };
+    setTranscript(prev => [...prev, entry]);
+
+    // Async save to Supabase
+    dbOps.addTranscriptEntry(currentSessionId, speaker, txt, ts).catch(err =>
+      console.error('Failed to save transcript:', err)
     );
-    onUpdate({
-      ...latest,
-      sessions: updatedSessions,
-      updatedAt: new Date().toISOString()
-    });
 
-    if (!settings.anthropicKey) {
-      console.log('⚠️ No Anthropic API key - skipping AI processing');
-      return;
-    }
-
-    // Add to pending texts
+    // Add to pending texts for AI processing
     pendingTextRef.current.push(text);
 
-    // Check if we can make an API call now
     const now = Date.now();
     const timeSinceLastCall = now - lastAICallRef.current;
-    const THROTTLE_MS = 2000; // 2 seconds minimum between calls
+    const THROTTLE_MS = 2000;
 
     if (timeSinceLastCall >= THROTTLE_MS && !throttleTimerRef.current) {
-      // We can call immediately
       const textsToProcess = [...pendingTextRef.current];
       pendingTextRef.current = [];
       lastAICallRef.current = now;
-      console.log(`⚡ Processing immediately (${timeSinceLastCall}ms since last call)`);
       await executeAIProcessing(textsToProcess);
     } else if (!throttleTimerRef.current) {
-      // Schedule a call after the throttle period
       const waitTime = THROTTLE_MS - timeSinceLastCall;
-      console.log(`⏳ Throttling: waiting ${waitTime}ms before processing`);
       throttleTimerRef.current = setTimeout(async () => {
         const textsToProcess = [...pendingTextRef.current];
         pendingTextRef.current = [];
         lastAICallRef.current = Date.now();
         throttleTimerRef.current = null;
         if (textsToProcess.length > 0) {
-          console.log(`⚡ Processing ${textsToProcess.length} batched transcript(s)`);
           await executeAIProcessing(textsToProcess);
         }
       }, waitTime);
-    } else {
-      // Timer already pending, text will be included in next batch
-      console.log(`📦 Queued for batch (${pendingTextRef.current.length} pending)`);
     }
   };
 
@@ -2585,7 +2215,21 @@ DM SECRET CONTEXT: ${latestForPrompt.dmContext || 'None'}`;
               <span className="text-xs text-gray-600">|</span>
               <select
                 value={currentSessionId}
-                onChange={(e) => setCurrentSessionId(e.target.value)}
+                onChange={async (e) => {
+                  const sid = e.target.value;
+                  setCurrentSessionId(sid);
+                  // Load transcript and events for the selected session
+                  try {
+                    const [t, ev] = await Promise.all([
+                      dbOps.fetchTranscript(sid),
+                      dbOps.fetchEvents(sid),
+                    ]);
+                    setTranscript(t.map(dbTranscriptToFrontend));
+                    setEvents(ev.map(dbEventToFrontend));
+                  } catch (err) {
+                    console.error('Failed to load session data:', err);
+                  }
+                }}
                 className="bg-gray-900 border border-gray-800 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-500 transition-colors"
               >
                 {sessions.map((s, i) => (
@@ -2595,25 +2239,20 @@ DM SECRET CONTEXT: ${latestForPrompt.dmContext || 'None'}`;
                 ))}
               </select>
               <button
-                onClick={() => {
-                  const newSession = {
-                    id: `session-${Date.now()}`,
-                    name: `Session ${sessions.length + 1}`,
-                    startTime: new Date().toISOString(),
-                    endTime: null,
-                    transcript: [],
-                    events: [],
-                    isActive: true
-                  };
-                  const latest = campaignRef.current;
-                  // Mark old sessions as inactive
-                  const updatedSessions = (latest.sessions || sessions).map(s => ({ ...s, isActive: false }));
-                  onUpdate({
-                    ...latest,
-                    sessions: [...updatedSessions, newSession],
-                    updatedAt: new Date().toISOString()
-                  });
-                  setCurrentSessionId(newSession.id);
+                onClick={async () => {
+                  try {
+                    // Deactivate old sessions locally
+                    setSessions(prev => prev.map(s => s.isActive ? { ...s, isActive: false, endTime: new Date().toISOString() } : s));
+
+                    const dbSession = await dbOps.createSession(campaign.id, `Session ${sessions.length + 1}`);
+                    const newSession = dbSessionToFrontend(dbSession);
+                    setSessions(prev => [...prev, newSession]);
+                    setCurrentSessionId(newSession.id);
+                    setTranscript([]);
+                    setEvents([]);
+                  } catch (err) {
+                    console.error('Failed to create session:', err);
+                  }
                 }}
                 className="text-xs text-indigo-400 hover:text-indigo-300 px-2 py-1 bg-gray-900 border border-gray-800 rounded transition-colors"
                 title="Start new session"
@@ -2775,18 +2414,34 @@ DM SECRET CONTEXT: ${latestForPrompt.dmContext || 'None'}`;
         isOpen={showRoster}
         onClose={() => setShowRoster(false)}
         playerRoster={playerRoster}
-        onSave={(roster) => {
-          const latest = campaignRef.current;
-          onUpdate({ ...latest, playerRoster: roster, updatedAt: new Date().toISOString() });
+        onSave={async (newRoster) => {
+          setPlayerRoster(newRoster);
+          // Sync roster to Supabase: delete removed, upsert existing/new
+          try {
+            const existingIds = new Set(newRoster.filter(r => r.id).map(r => r.id));
+            const toDelete = playerRoster.filter(r => !existingIds.has(r.id));
+            for (const r of toDelete) {
+              await dbOps.deleteRosterEntry(r.id);
+            }
+            for (const r of newRoster) {
+              await dbOps.upsertRosterEntry(campaign.id, r);
+            }
+          } catch (err) {
+            console.error('Failed to save roster:', err);
+          }
         }}
       />
       <ArcModal
         isOpen={showArc}
         onClose={() => setShowArc(false)}
         arc={dmContext}
-        onSave={(arc) => {
-          const latest = campaignRef.current;
-          onUpdate({ ...latest, dmContext: arc, updatedAt: new Date().toISOString() });
+        onSave={async (arc) => {
+          setDmContext(arc);
+          try {
+            await dbOps.updateCampaign(campaign.id, { dm_context: arc });
+          } catch (err) {
+            console.error('Failed to save DM context:', err);
+          }
         }}
       />
       <ToolsPanel
@@ -2883,10 +2538,13 @@ DM SECRET CONTEXT: ${latestForPrompt.dmContext || 'None'}`;
             {voidCards.length > 0 && (
               <div className="px-4 py-2 border-t border-gray-800 bg-gray-900/50">
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     if (confirm('Permanently delete all cards in The Void? This cannot be undone.')) {
-                      const latest = campaignRef.current;
-                      onUpdate({ ...latest, void: [], updatedAt: new Date().toISOString() });
+                      const toDelete = [...voidCards];
+                      setAllCards(prev => prev.filter(c => !c.voidedAt));
+                      for (const card of toDelete) {
+                        dbOps.permanentlyDeleteCard(card.id).catch(err => console.error('Failed to delete:', err));
+                      }
                     }
                   }}
                   className="w-full text-xs text-red-400/70 hover:text-red-400 py-1 transition-colors"
@@ -2904,49 +2562,85 @@ DM SECRET CONTEXT: ${latestForPrompt.dmContext || 'None'}`;
 
 // Main App (without error boundary)
 function AppCore() {
-  const [campaigns, setCampaigns, campaignsLoaded] = useStorage('dm-hud-campaigns', []);
-  const [settings, setSettings, settingsLoaded] = useStorage('dm-hud-settings', {});
+  const { user, profile, signOut } = useAuth();
+  const [campaigns, setCampaigns] = useState([]);
+  const [campaignsLoaded, setCampaignsLoaded] = useState(false);
   const [activeId, setActiveId] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
 
-  const active = campaigns.find(c => c.id === activeId);
-
-  const create = (name) => {
-    const firstSession = {
-      id: `session-${Date.now()}`,
-      name: 'Session 1',
-      startTime: new Date().toISOString(),
-      endTime: null,
-      transcript: [],
-      events: [], // Character events: rolls, checks, discoveries, etc.
-      isActive: true
-    };
-    const nc = {
-      id: `campaign-${Date.now()}`,
-      name,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      dmContext: '',
-      cards: [], // Campaign-level persistent cards
-      sessions: [firstSession],
-      playerRoster: [] // {playerName, characterName, characterId, aliases: []}
-    };
-    setCampaigns([...campaigns, nc]);
-    setActiveId(nc.id);
+  // Settings object for backward compatibility with components that expect it
+  // In managed mode, the AI keys are handled server-side
+  const settings = {
+    anthropicKey: profile?.key_mode === 'byok' ? profile?.anthropic_key_encrypted : '__managed__',
+    deepgramKey: profile?.key_mode === 'byok' ? profile?.deepgram_key_encrypted : '__managed__',
+    keyMode: profile?.key_mode || 'managed',
   };
 
-  const del = (id) => { setCampaigns(campaigns.filter(c => c.id !== id)); if (activeId === id) setActiveId(null); };
-  const update = (updated) => setCampaigns(campaigns.map(c => c.id === updated.id ? updated : c));
-  const saveDmContext = (ctx) => { if (active) update({ ...active, dmContext: ctx }); };
+  // Load campaigns from Supabase
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
 
-  if (!campaignsLoaded || !settingsLoaded) return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><div className="text-gray-400">Loading...</div></div>;
+    dbOps.fetchCampaigns(user.id).then(data => {
+      if (!cancelled) {
+        setCampaigns(data.map(dbCampaignToFrontend));
+        setCampaignsLoaded(true);
+      }
+    }).catch(err => {
+      console.error('Failed to load campaigns:', err);
+      if (!cancelled) setCampaignsLoaded(true);
+    });
+
+    return () => { cancelled = true; };
+  }, [user]);
+
+  const active = campaigns.find(c => c.id === activeId);
+
+  const create = async (name) => {
+    try {
+      const { campaign, session } = await dbOps.createCampaign(user.id, name);
+      const frontendCampaign = dbCampaignToFrontend(campaign);
+      setCampaigns(prev => [frontendCampaign, ...prev]);
+      setActiveId(frontendCampaign.id);
+    } catch (err) {
+      console.error('Failed to create campaign:', err);
+    }
+  };
+
+  const del = async (id) => {
+    setCampaigns(prev => prev.filter(c => c.id !== id));
+    if (activeId === id) setActiveId(null);
+    try {
+      await dbOps.deleteCampaign(id);
+    } catch (err) {
+      console.error('Failed to delete campaign:', err);
+    }
+  };
+
+  const updateLocal = (updated) => setCampaigns(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c));
+
+  const onSaveSettings = async (newSettings) => {
+    // Save BYOK keys to profile
+    if (profile?.key_mode === 'byok') {
+      try {
+        await dbOps.updateProfile(user.id, {
+          anthropic_key_encrypted: newSettings.anthropicKey,
+          deepgram_key_encrypted: newSettings.deepgramKey,
+        });
+      } catch (err) {
+        console.error('Failed to save settings:', err);
+      }
+    }
+  };
+
+  if (!campaignsLoaded) return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><div className="text-gray-400">Loading...</div></div>;
 
   return (
     <>
       {active ? (
-        <CampaignView campaign={active} onUpdate={update} onBack={() => setActiveId(null)} settings={settings} onSaveSettings={setSettings} />
+        <CampaignView campaign={active} onUpdateLocal={updateLocal} onBack={() => setActiveId(null)} settings={settings} onSaveSettings={onSaveSettings} userId={user.id} />
       ) : (
-        <CampaignsHome campaigns={campaigns} onSelect={setActiveId} onCreate={create} onDelete={del} settings={settings} onOpenSettings={() => setShowSettings(true)} />
+        <CampaignsHome campaigns={campaigns} onSelect={setActiveId} onCreate={create} onDelete={del} settings={settings} onOpenSettings={() => setShowSettings(true)} onSignOut={signOut} profile={profile} />
       )}
       {/* Settings panel for home screen (Account tab only) */}
       <ToolsPanel
@@ -2957,7 +2651,7 @@ function AppCore() {
         currentSession={null}
         cards={[]}
         settings={settings}
-        onSaveSettings={setSettings}
+        onSaveSettings={onSaveSettings}
         onGenerateReport={() => {}}
       />
     </>
