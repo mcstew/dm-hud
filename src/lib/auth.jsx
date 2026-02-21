@@ -10,42 +10,59 @@ export function AuthProvider({ children }) {
   const mountedRef = useRef(true);
 
   // Fetch profile from profiles table, auto-create if missing
+  // Wrapped with a timeout to prevent indefinite hangs from RLS/DB issues
   const fetchProfile = async (userId) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
+    const timeoutMs = 8000;
+    const profilePromise = (async () => {
+      try {
+        console.log('[auth] Fetching profile for', userId);
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single();
 
-      if (error) {
-        // If profile doesn't exist (trigger may not have fired), create it
-        if (error.code === 'PGRST116') {
-          console.warn('Profile not found, creating one...');
-          const { data: { user: authUser } } = await supabase.auth.getUser();
-          const email = authUser?.email || '';
-          const displayName = authUser?.user_metadata?.display_name || email.split('@')[0];
+        if (error) {
+          // If profile doesn't exist (trigger may not have fired), create it
+          if (error.code === 'PGRST116') {
+            console.warn('[auth] Profile not found, creating one...');
+            const { data: { user: authUser } } = await supabase.auth.getUser();
+            const email = authUser?.email || '';
+            const displayName = authUser?.user_metadata?.display_name || email.split('@')[0];
 
-          const { data: newProfile, error: insertErr } = await supabase
-            .from('profiles')
-            .insert({ id: userId, email, display_name: displayName })
-            .select()
-            .single();
+            const { data: newProfile, error: insertErr } = await supabase
+              .from('profiles')
+              .insert({ id: userId, email, display_name: displayName })
+              .select()
+              .single();
 
-          if (insertErr) {
-            console.error('Failed to create profile:', insertErr);
-            return null;
+            if (insertErr) {
+              console.error('[auth] Failed to create profile:', insertErr);
+              return null;
+            }
+            console.log('[auth] Profile created successfully');
+            return newProfile;
           }
-          return newProfile;
+          console.error('[auth] Error fetching profile:', error);
+          return null;
         }
-        console.error('Error fetching profile:', error);
+        console.log('[auth] Profile fetched:', data?.email, 'superuser:', data?.is_superuser);
+        return data;
+      } catch (err) {
+        console.error('[auth] fetchProfile exception:', err);
         return null;
       }
-      return data;
-    } catch (err) {
-      console.error('fetchProfile exception:', err);
-      return null;
-    }
+    })();
+
+    // Race against a timeout to prevent infinite hangs
+    const timeout = new Promise((resolve) => {
+      setTimeout(() => {
+        console.error(`[auth] fetchProfile timed out after ${timeoutMs}ms`);
+        resolve(null);
+      }, timeoutMs);
+    });
+
+    return Promise.race([profilePromise, timeout]);
   };
 
   useEffect(() => {
