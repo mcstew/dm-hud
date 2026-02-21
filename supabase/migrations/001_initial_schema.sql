@@ -205,6 +205,10 @@ create policy "Users can read own profile"
   on public.profiles for select
   using (id = auth.uid() or public.is_superuser());
 
+create policy "Users can insert own profile"
+  on public.profiles for insert
+  with check (id = auth.uid());
+
 create policy "Users can update own profile"
   on public.profiles for update
   using (id = auth.uid())
