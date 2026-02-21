@@ -1833,6 +1833,11 @@ const CampaignView = ({ campaign, onUpdateLocal, onBack, settings, onSaveSetting
     return cardSessionIndex <= currentSessionIndex;
   });
 
+  // Keep selected card in sync with card data updates
+  useEffect(() => { if (selected) { const u = cards.find(c => c.id === selected.id); if (u) setSelected(u); else setSelected(null); } }, [cards]);
+  // Auto-scroll transcript to bottom
+  useEffect(() => { if (transcriptRef.current && transcriptOpen) transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight; }, [transcript, transcriptOpen]);
+
   if (!dataLoaded) {
     return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><div className="text-gray-400">Loading campaign...</div></div>;
   }
@@ -2198,9 +2203,6 @@ const CampaignView = ({ campaign, onUpdateLocal, onBack, settings, onSaveSetting
   const locations = cards.filter(c => c.type === 'LOCATION');
   const items = cards.filter(c => c.type === 'ITEM');
   const plots = cards.filter(c => c.type === 'PLOT');
-
-  useEffect(() => { if (selected) { const u = cards.find(c => c.id === selected.id); if (u) setSelected(u); else setSelected(null); } }, [cards]);
-  useEffect(() => { if (transcriptRef.current && transcriptOpen) transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight; }, [transcript, transcriptOpen]);
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
