@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { IconKey, IconUser, IconSword } from '@tabler/icons-react';
 import { useAuth } from '../lib/auth';
 
@@ -11,7 +12,12 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [signupSuccess, setSignupSuccess] = useState(false);
 
-  const { signIn, signUp, signInWithDiscord } = useAuth();
+  const { user, loading: authLoading, signIn, signUp, signInWithDiscord } = useAuth();
+
+  // If already authenticated, redirect to home
+  if (user && !authLoading) {
+    return <Navigate to="/" replace />;
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();

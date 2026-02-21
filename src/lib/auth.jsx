@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from './supabase';
 
 const AuthContext = createContext(null);
@@ -7,74 +7,97 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const mountedRef = useRef(true);
 
   // Fetch profile from profiles table, auto-create if missing
   const fetchProfile = async (userId) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
 
-    if (error) {
-      // If profile doesn't exist (trigger may not have fired), create it
-      if (error.code === 'PGRST116') {
-        console.warn('Profile not found, creating one...');
-        const { data: { user } } = await supabase.auth.getUser();
-        const email = user?.email || '';
-        const displayName = user?.user_metadata?.display_name || email.split('@')[0];
+      if (error) {
+        // If profile doesn't exist (trigger may not have fired), create it
+        if (error.code === 'PGRST116') {
+          console.warn('Profile not found, creating one...');
+          const { data: { user: authUser } } = await supabase.auth.getUser();
+          const email = authUser?.email || '';
+          const displayName = authUser?.user_metadata?.display_name || email.split('@')[0];
 
-        const { data: newProfile, error: insertErr } = await supabase
-          .from('profiles')
-          .insert({ id: userId, email, display_name: displayName })
-          .select()
-          .single();
+          const { data: newProfile, error: insertErr } = await supabase
+            .from('profiles')
+            .insert({ id: userId, email, display_name: displayName })
+            .select()
+            .single();
 
-        if (insertErr) {
-          console.error('Failed to create profile:', insertErr);
-          return null;
+          if (insertErr) {
+            console.error('Failed to create profile:', insertErr);
+            return null;
+          }
+          return newProfile;
         }
-        return newProfile;
+        console.error('Error fetching profile:', error);
+        return null;
       }
-      console.error('Error fetching profile:', error);
+      return data;
+    } catch (err) {
+      console.error('fetchProfile exception:', err);
       return null;
     }
-    return data;
   };
 
   useEffect(() => {
-    // Use onAuthStateChange as the single source of truth
-    // It fires INITIAL_SESSION on mount, then SIGNED_IN/SIGNED_OUT on changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      try {
-        const currentUser = session?.user ?? null;
-        setUser(currentUser);
+    mountedRef.current = true;
 
-        if (currentUser) {
-          const p = await fetchProfile(currentUser.id);
-          setProfile(p);
+    // Initialize auth state
+    const initAuth = async () => {
+      try {
+        // Get current session
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (!mountedRef.current) return;
+
+        if (session?.user) {
+          setUser(session.user);
+          const p = await fetchProfile(session.user.id);
+          if (mountedRef.current) setProfile(p);
         } else {
+          setUser(null);
           setProfile(null);
         }
       } catch (err) {
-        console.error('Auth state change error:', err);
-        setProfile(null);
+        console.error('initAuth error:', err);
       } finally {
-        setLoading(false);
+        if (mountedRef.current) setLoading(false);
       }
+    };
+
+    initAuth();
+
+    // Listen for subsequent auth changes (sign in, sign out, token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Skip INITIAL_SESSION since initAuth handles it
+      if (event === 'INITIAL_SESSION') return;
+
+      if (!mountedRef.current) return;
+
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+
+      if (currentUser) {
+        const p = await fetchProfile(currentUser.id);
+        if (mountedRef.current) setProfile(p);
+      } else {
+        setProfile(null);
+      }
+      if (mountedRef.current) setLoading(false);
     });
 
-    // Safety net: if onAuthStateChange never fires (shouldn't happen, but just in case)
-    const timeout = setTimeout(() => {
-      setLoading(prev => {
-        if (prev) console.warn('Auth loading timeout — forcing load complete');
-        return false;
-      });
-    }, 5000);
-
     return () => {
+      mountedRef.current = false;
       subscription.unsubscribe();
-      clearTimeout(timeout);
     };
   }, []);
 
