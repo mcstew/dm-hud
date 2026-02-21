@@ -36,14 +36,15 @@ serve(async (req) => {
       .single()
 
     let key: string
-    if (profile?.key_mode === 'byok' && profile?.deepgram_key_encrypted) {
-      key = profile.deepgram_key_encrypted
-    } else {
+    if (profile?.key_mode === 'managed') {
       key = Deno.env.get('DEEPGRAM_API_KEY') ?? ''
+    } else {
+      key = profile?.deepgram_key_encrypted ?? ''
     }
 
     if (!key) {
-      return new Response(JSON.stringify({ error: 'No Deepgram key available' }), {
+      const msg = profile?.key_mode === 'managed' ? 'Server Deepgram key not configured' : 'Please add your Deepgram API key in Settings'
+      return new Response(JSON.stringify({ error: msg }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }

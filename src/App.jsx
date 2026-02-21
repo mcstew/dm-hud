@@ -2643,9 +2643,9 @@ function AppCore() {
   // Settings object for backward compatibility with components that expect it
   // In managed mode, the AI keys are handled server-side
   const settings = {
-    anthropicKey: profile?.key_mode === 'byok' ? profile?.anthropic_key_encrypted : '__managed__',
-    deepgramKey: profile?.key_mode === 'byok' ? profile?.deepgram_key_encrypted : '__managed__',
-    keyMode: profile?.key_mode || 'managed',
+    anthropicKey: profile?.key_mode === 'managed' ? '__managed__' : (profile?.anthropic_key_encrypted || ''),
+    deepgramKey: profile?.key_mode === 'managed' ? '__managed__' : (profile?.deepgram_key_encrypted || ''),
+    keyMode: profile?.key_mode || 'byok',
   };
 
   // Load campaigns from Supabase

@@ -35,12 +35,13 @@ serve(async (req) => {
       .eq('id', user.id)
       .single()
 
-    const apiKey = (profile?.key_mode === 'byok' && profile?.anthropic_key_encrypted)
-      ? profile.anthropic_key_encrypted
-      : Deno.env.get('ANTHROPIC_API_KEY') ?? ''
+    const apiKey = profile?.key_mode === 'managed'
+      ? (Deno.env.get('ANTHROPIC_API_KEY') ?? '')
+      : (profile?.anthropic_key_encrypted ?? '')
 
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'No API key available' }), {
+      const msg = profile?.key_mode === 'managed' ? 'Server API key not configured' : 'Please add your Anthropic API key in Settings'
+      return new Response(JSON.stringify({ error: msg }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }

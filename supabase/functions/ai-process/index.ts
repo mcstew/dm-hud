@@ -88,16 +88,21 @@ serve(async (req) => {
       .eq('id', user.id)
       .single()
 
-    // Resolve API key
+    // Resolve API key based on user's key mode
     let apiKey: string
-    if (profile?.key_mode === 'byok' && profile?.anthropic_key_encrypted) {
-      apiKey = profile.anthropic_key_encrypted
-    } else {
+    if (profile?.key_mode === 'managed') {
+      // Managed mode: use the server's shared key
       apiKey = Deno.env.get('ANTHROPIC_API_KEY') ?? ''
+    } else {
+      // BYOK mode: user must provide their own key
+      apiKey = profile?.anthropic_key_encrypted ?? ''
     }
 
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'No API key available' }), {
+      const msg = profile?.key_mode === 'managed'
+        ? 'Server API key not configured'
+        : 'Please add your Anthropic API key in Settings'
+      return new Response(JSON.stringify({ error: msg }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })

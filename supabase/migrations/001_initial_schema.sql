@@ -12,7 +12,7 @@ create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text,
   display_name text,
-  key_mode text not null default 'managed' check (key_mode in ('managed', 'byok')),
+  key_mode text not null default 'byok' check (key_mode in ('managed', 'byok')),
   anthropic_key_encrypted text,
   deepgram_key_encrypted text,
   is_superuser boolean not null default false,

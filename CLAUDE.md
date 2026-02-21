@@ -36,7 +36,7 @@
 
 ## Key Architecture Decisions
 
-- **Managed-key by default**: New users get immediate access using the owner's API keys. Admin can toggle heavy users to BYOK mode.
+- **BYOK by default**: New users must provide their own API keys. Admin can toggle trusted beta testers to "managed" mode (uses owner's keys).
 - **AI calls proxied through Edge Functions**: Browser → Supabase Edge Function → Anthropic API. Every call logged to `ai_logs` table.
 - **Optimistic updates**: React state updates immediately, Supabase writes happen async.
 - **Mapper pattern**: DB uses snake_case, frontend uses camelCase. Mappers in `src/lib/mappers.js`.
