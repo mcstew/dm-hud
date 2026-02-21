@@ -14,9 +14,9 @@ export default function Auth() {
 
   const { user, loading: authLoading, signIn, signUp, signInWithDiscord } = useAuth();
 
-  // If already authenticated, redirect to home
+  // If already authenticated, redirect to app
   if (user && !authLoading) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/app" replace />;
   }
 
   const handleSubmit = async (e) => {
