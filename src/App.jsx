@@ -35,6 +35,7 @@ import {
   IconRefresh,
   IconDownload,
   IconLogout,
+  IconBrain,
 } from '@tabler/icons-react';
 import { useAuth } from './lib/auth';
 import * as dbOps from './lib/db';
@@ -634,46 +635,90 @@ const ToolsPanel = ({ isOpen, onClose, campaign, sessions, currentSession, cards
           {/* Account Tab */}
           {activeTab === 'account' && (
             <div className="space-y-6">
-              <div>
-                <h3 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
-                  <IconKey size={16} /> API Keys
-                </h3>
-                <p className="text-xs text-gray-500 mb-4">Stored locally in your browser only. Never sent to our servers.</p>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-1">Anthropic API Key</label>
-                    <input
-                      type="password"
-                      value={localSettings.anthropicKey || ''}
-                      onChange={(e) => setLocalSettings({ ...localSettings, anthropicKey: e.target.value })}
-                      className="w-full bg-gray-950 border border-gray-700 rounded px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none transition-colors"
-                      placeholder="sk-ant-..."
-                    />
-                    <p className="text-xs text-gray-500 mt-1">For AI suggestions, reports, and transcript processing</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-1">Deepgram API Key</label>
-                    <input
-                      type="password"
-                      value={localSettings.deepgramKey || ''}
-                      onChange={(e) => setLocalSettings({ ...localSettings, deepgramKey: e.target.value })}
-                      className="w-full bg-gray-950 border border-gray-700 rounded px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none transition-colors"
-                      placeholder="Your Deepgram key"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">For real-time voice transcription</p>
+              {settings.keyMode === 'managed' ? (
+                /* Managed key mode — show connection status, no key inputs */
+                <div>
+                  <h3 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
+                    <IconKey size={16} /> AI Services
+                  </h3>
+                  <p className="text-xs text-gray-500 mb-4">Your account uses managed API keys — no configuration needed.</p>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between bg-gray-800/50 rounded-lg p-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-indigo-600/10 flex items-center justify-center">
+                          <IconBrain size={16} className="text-indigo-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-white">Anthropic AI</p>
+                          <p className="text-xs text-gray-500">Entity extraction, riffs, reports</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                        <span className="text-xs text-emerald-400 font-medium">Connected</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between bg-gray-800/50 rounded-lg p-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-purple-600/10 flex items-center justify-center">
+                          <IconMicrophone size={16} className="text-purple-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-white">Deepgram</p>
+                          <p className="text-xs text-gray-500">Live & file transcription</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                        <span className="text-xs text-emerald-400 font-medium">Connected</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div className="mt-4 pt-4 border-t border-gray-800">
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className={`w-2 h-2 rounded-full ${localSettings.anthropicKey ? 'bg-emerald-500' : 'bg-gray-600'}`} />
-                    <span className="text-gray-400">Anthropic: {localSettings.anthropicKey ? 'Configured' : 'Not set'}</span>
+              ) : (
+                /* BYOK mode — show key input fields */
+                <div>
+                  <h3 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
+                    <IconKey size={16} /> API Keys
+                  </h3>
+                  <p className="text-xs text-gray-500 mb-1">Your account is set to bring-your-own-key mode.</p>
+                  <p className="text-xs text-gray-500 mb-4">Keys are stored encrypted on our server and used to call AI services on your behalf.</p>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-400 mb-1">Anthropic API Key</label>
+                      <input
+                        type="password"
+                        value={localSettings.anthropicKey === '__managed__' ? '' : (localSettings.anthropicKey || '')}
+                        onChange={(e) => setLocalSettings({ ...localSettings, anthropicKey: e.target.value })}
+                        className="w-full bg-gray-950 border border-gray-700 rounded px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none transition-colors"
+                        placeholder="sk-ant-..."
+                      />
+                      <p className="text-xs text-gray-500 mt-1">For AI suggestions, reports, and transcript processing</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-400 mb-1">Deepgram API Key</label>
+                      <input
+                        type="password"
+                        value={localSettings.deepgramKey === '__managed__' ? '' : (localSettings.deepgramKey || '')}
+                        onChange={(e) => setLocalSettings({ ...localSettings, deepgramKey: e.target.value })}
+                        className="w-full bg-gray-950 border border-gray-700 rounded px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none transition-colors"
+                        placeholder="Your Deepgram key"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">For real-time voice transcription</p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 text-xs mt-1">
-                    <span className={`w-2 h-2 rounded-full ${localSettings.deepgramKey ? 'bg-emerald-500' : 'bg-gray-600'}`} />
-                    <span className="text-gray-400">Deepgram: {localSettings.deepgramKey ? 'Configured' : 'Not set'}</span>
+                  <div className="mt-4 pt-4 border-t border-gray-800">
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className={`w-2 h-2 rounded-full ${localSettings.anthropicKey && localSettings.anthropicKey !== '__managed__' ? 'bg-emerald-500' : 'bg-gray-600'}`} />
+                      <span className="text-gray-400">Anthropic: {localSettings.anthropicKey && localSettings.anthropicKey !== '__managed__' ? 'Configured' : 'Not set'}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs mt-1">
+                      <span className={`w-2 h-2 rounded-full ${localSettings.deepgramKey && localSettings.deepgramKey !== '__managed__' ? 'bg-emerald-500' : 'bg-gray-600'}`} />
+                      <span className="text-gray-400">Deepgram: {localSettings.deepgramKey && localSettings.deepgramKey !== '__managed__' ? 'Configured' : 'Not set'}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               <div className="pt-4 border-t border-gray-800">
                 <h3 className="text-sm font-medium text-gray-300 mb-3">Preferences</h3>
@@ -719,11 +764,16 @@ const ToolsPanel = ({ isOpen, onClose, campaign, sessions, currentSession, cards
           )}
         </div>
 
-        {/* Footer with Save (for Account tab) */}
-        {activeTab === 'account' && (
+        {/* Footer with Save (for Account tab in BYOK mode only) */}
+        {activeTab === 'account' && settings.keyMode === 'byok' && (
           <div className="p-4 border-t border-gray-800 flex justify-end gap-2">
             <Button variant="ghost" onClick={onClose}>Cancel</Button>
             <Button variant="primary" onClick={() => { onSaveSettings(localSettings); onClose(); }}>Save Settings</Button>
+          </div>
+        )}
+        {activeTab === 'account' && settings.keyMode === 'managed' && (
+          <div className="p-4 border-t border-gray-800 flex justify-end">
+            <Button variant="ghost" onClick={onClose}>Close</Button>
           </div>
         )}
       </div>
@@ -1401,10 +1451,24 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
 
       setLiveStatus('connecting');
 
+      // Resolve the actual Deepgram key (fetch from Edge Function if managed)
+      let deepgramToken = settings.deepgramKey;
+      if (deepgramToken === '__managed__') {
+        try {
+          deepgramToken = await aiService.getDeepgramKey();
+        } catch (e) {
+          setError('Failed to get Deepgram key from server. Edge Functions may not be deployed yet.');
+          streamRef.current?.getTracks().forEach(t => t.stop());
+          streamRef.current = null;
+          setLiveStatus('idle');
+          return;
+        }
+      }
+
       // Connect to Deepgram WebSocket
       const ws = new WebSocket(
         `wss://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&diarize=true&punctuate=true&interim_results=false`,
-        ['token', settings.deepgramKey]
+        ['token', deepgramToken]
       );
 
       socketRef.current = ws;
@@ -1520,10 +1584,16 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
     if (!settings.deepgramKey || !file) return;
     setStatus('transcribing'); setError(null);
     try {
+      // Resolve the actual Deepgram key
+      let deepgramToken = settings.deepgramKey;
+      if (deepgramToken === '__managed__') {
+        deepgramToken = await aiService.getDeepgramKey();
+      }
+
       const buffer = await file.arrayBuffer();
       const res = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&diarize=true&punctuate=true', {
         method: 'POST',
-        headers: { 'Authorization': `Token ${settings.deepgramKey}`, 'Content-Type': file.type || 'audio/wav' },
+        headers: { 'Authorization': `Token ${deepgramToken}`, 'Content-Type': file.type || 'audio/wav' },
         body: buffer,
       });
       if (!res.ok) throw new Error(`Deepgram: ${res.status}`);

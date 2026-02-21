@@ -39,7 +39,7 @@ export default function AdminPanel() {
       <aside className="w-56 bg-gray-900/50 border-r border-gray-800 flex flex-col">
         <div className="px-5 py-4 border-b border-gray-800">
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/app')}
             className="flex items-center gap-2 text-gray-400 hover:text-white text-sm transition-colors mb-3"
           >
             <IconChevronLeft size={14} /> Back to App
