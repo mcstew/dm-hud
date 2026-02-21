@@ -8,113 +8,111 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const mountedRef = useRef(true);
+  // Track whether we've successfully loaded a profile to prevent overwrites
+  const profileLoadedRef = useRef(false);
 
-  // Fetch profile from profiles table, auto-create if missing
-  // Wrapped with a timeout to prevent indefinite hangs from RLS/DB issues
-  const fetchProfile = async (userId) => {
-    const timeoutMs = 8000;
-    const profilePromise = (async () => {
-      try {
-        console.log('[auth] Fetching profile for', userId);
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .single();
+  // Fetch profile with timeout and retry
+  const fetchProfileOnce = async (userId, timeoutMs = 5000) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-        if (error) {
-          // If profile doesn't exist (trigger may not have fired), create it
-          if (error.code === 'PGRST116') {
-            console.warn('[auth] Profile not found, creating one...');
-            const { data: { user: authUser } } = await supabase.auth.getUser();
-            const email = authUser?.email || '';
-            const displayName = authUser?.user_metadata?.display_name || email.split('@')[0];
+    try {
+      console.log('[auth] Fetching profile for', userId);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single()
+        .abortSignal(controller.signal);
 
-            const { data: newProfile, error: insertErr } = await supabase
-              .from('profiles')
-              .insert({ id: userId, email, display_name: displayName })
-              .select()
-              .single();
+      clearTimeout(timer);
 
-            if (insertErr) {
-              console.error('[auth] Failed to create profile:', insertErr);
-              return null;
-            }
-            console.log('[auth] Profile created successfully');
-            return newProfile;
+      if (error) {
+        if (error.code === 'PGRST116') {
+          console.warn('[auth] Profile not found, creating one...');
+          const { data: { user: authUser } } = await supabase.auth.getUser();
+          const email = authUser?.email || '';
+          const displayName = authUser?.user_metadata?.display_name || email.split('@')[0];
+
+          const { data: newProfile, error: insertErr } = await supabase
+            .from('profiles')
+            .insert({ id: userId, email, display_name: displayName })
+            .select()
+            .single();
+
+          if (insertErr) {
+            console.error('[auth] Failed to create profile:', insertErr);
+            return null;
           }
-          console.error('[auth] Error fetching profile:', error);
-          return null;
+          console.log('[auth] Profile created successfully');
+          return newProfile;
         }
-        console.log('[auth] Profile fetched:', data?.email, 'superuser:', data?.is_superuser);
-        return data;
-      } catch (err) {
-        console.error('[auth] fetchProfile exception:', err);
+        console.error('[auth] Error fetching profile:', error);
         return null;
       }
-    })();
+      console.log('[auth] Profile fetched:', data?.email, 'superuser:', data?.is_superuser);
+      return data;
+    } catch (err) {
+      clearTimeout(timer);
+      if (err.name === 'AbortError' || err.message?.includes('abort')) {
+        console.warn(`[auth] fetchProfile timed out after ${timeoutMs}ms`);
+      } else {
+        console.error('[auth] fetchProfile exception:', err);
+      }
+      return null;
+    }
+  };
 
-    // Race against a timeout to prevent infinite hangs
-    const timeout = new Promise((resolve) => {
-      setTimeout(() => {
-        console.error(`[auth] fetchProfile timed out after ${timeoutMs}ms`);
-        resolve(null);
-      }, timeoutMs);
-    });
-
-    return Promise.race([profilePromise, timeout]);
+  // Fetch with retry: try once, if null retry after a short delay
+  const fetchProfile = async (userId) => {
+    let result = await fetchProfileOnce(userId, 5000);
+    if (!result && mountedRef.current) {
+      console.log('[auth] Retrying profile fetch...');
+      await new Promise(r => setTimeout(r, 500));
+      result = await fetchProfileOnce(userId, 5000);
+    }
+    return result;
   };
 
   useEffect(() => {
     mountedRef.current = true;
+    profileLoadedRef.current = false;
 
-    // Initialize auth state
-    const initAuth = async () => {
-      try {
-        // Get current session
-        const { data: { session } } = await supabase.auth.getSession();
-
-        if (!mountedRef.current) return;
-
-        if (session?.user) {
-          setUser(session.user);
-          const p = await fetchProfile(session.user.id);
-          if (mountedRef.current) setProfile(p);
-        } else {
-          setUser(null);
-          setProfile(null);
-        }
-      } catch (err) {
-        console.error('initAuth error:', err);
-      } finally {
-        if (mountedRef.current) setLoading(false);
-      }
-    };
-
-    initAuth();
-
-    // Listen for subsequent auth changes (sign in, sign out, token refresh)
+    // Listen for auth changes — this is now the SOLE source of truth
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // Skip INITIAL_SESSION since initAuth handles it
-      if (event === 'INITIAL_SESSION') return;
-
       if (!mountedRef.current) return;
+
+      console.log('[auth] onAuthStateChange:', event);
 
       const currentUser = session?.user ?? null;
       setUser(currentUser);
 
       if (currentUser) {
         const p = await fetchProfile(currentUser.id);
-        if (mountedRef.current) setProfile(p);
+        if (mountedRef.current) {
+          setProfile(p);
+          if (p) profileLoadedRef.current = true;
+        }
       } else {
         setProfile(null);
+        profileLoadedRef.current = false;
       }
+
       if (mountedRef.current) setLoading(false);
     });
+
+    // Safety net: if onAuthStateChange hasn't resolved loading after 10s, force it
+    const safetyTimer = setTimeout(() => {
+      if (mountedRef.current && loading) {
+        console.warn('[auth] Safety timeout — forcing loading to false');
+        setLoading(false);
+      }
+    }, 10000);
 
     return () => {
       mountedRef.current = false;
       subscription.unsubscribe();
+      clearTimeout(safetyTimer);
     };
   }, []);
 
@@ -152,6 +150,7 @@ export function AuthProvider({ children }) {
     if (!error) {
       setUser(null);
       setProfile(null);
+      profileLoadedRef.current = false;
     }
     return { error };
   };
