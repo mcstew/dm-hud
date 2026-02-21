@@ -36,14 +36,14 @@
 
 ## Key Architecture Decisions
 
-- **BYOK by default**: New users must provide their own API keys. Admin can toggle trusted beta testers to "managed" mode (uses owner's keys).
+- **BYOK by default (beta)**: New users must provide their own API keys. Admin can toggle trusted beta testers to "managed" mode (uses owner's keys). Future: paid tiers will replace this — e.g. free/BYOK tier, paid "all-inclusive" tier with managed keys. The `key_mode` text field on profiles is already flexible enough to support new values (e.g. 'pro', 'free'). When productizing, add `subscription_tier` and/or `subscription_expires_at` to profiles.
 - **AI calls proxied through Edge Functions**: Browser → Supabase Edge Function → Anthropic API. Every call logged to `ai_logs` table.
 - **Optimistic updates**: React state updates immediately, Supabase writes happen async.
 - **Mapper pattern**: DB uses snake_case, frontend uses camelCase. Mappers in `src/lib/mappers.js`.
 
-## Edge Functions (not yet deployed)
+## Edge Functions (deployed)
 
-Located in `supabase/functions/`. Need to be deployed via Supabase CLI:
+Located in `supabase/functions/`. Deployed via Supabase CLI (`SUPABASE_ACCESS_TOKEN` needed):
 - `ai-process` — Main entity extraction
 - `ai-riff` — Riff generation
 - `ai-report` — Session report generation

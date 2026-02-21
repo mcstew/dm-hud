@@ -681,7 +681,9 @@ const ToolsPanel = ({ isOpen, onClose, campaign, sessions, currentSession, cards
                   <h3 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
                     <IconKey size={16} /> API Keys
                   </h3>
-                  <p className="text-xs text-gray-500 mb-1">Your account is set to bring-your-own-key mode.</p>
+                  <div className="bg-indigo-900/20 border border-indigo-500/30 rounded-lg p-3 mb-4">
+                    <p className="text-xs text-indigo-300">🧪 <span className="font-medium">Beta:</span> Bring your own API keys to try DM HUD while we're in beta! Paid plans with included AI are coming soon.</p>
+                  </div>
                   <p className="text-xs text-gray-500 mb-4">Keys are stored encrypted on our server and used to call AI services on your behalf.</p>
                   <div className="space-y-4">
                     <div>
@@ -875,13 +877,13 @@ const CampaignsHome = ({ campaigns, onSelect, onCreate, onDelete, settings, onOp
         )}
 
         {settings.keyMode === 'byok' && (!settings.anthropicKey || settings.anthropicKey === '__managed__') && (
-          <div className="mt-8 p-4 bg-amber-900/20 border border-amber-500/30 rounded-lg">
+          <div className="mt-8 p-4 bg-indigo-900/20 border border-indigo-500/30 rounded-lg">
             <div className="flex items-start gap-3">
-              <span className="text-amber-400">{Icons.key}</span>
+              <span className="text-indigo-400">{Icons.key}</span>
               <div>
-                <h4 className="font-medium text-amber-200 text-sm">API Keys Required</h4>
-                <p className="text-xs text-amber-300/70 mt-1">Your account is set to bring-your-own-key mode. Add your API keys in Settings to enable AI features.</p>
-                <button onClick={onOpenSettings} className="text-xs text-amber-400 hover:text-amber-300 mt-2 underline">Configure →</button>
+                <h4 className="font-medium text-indigo-200 text-sm">🧪 Beta — Bring Your Own Keys</h4>
+                <p className="text-xs text-indigo-300/70 mt-1">Add your Anthropic and Deepgram API keys in Settings to start using AI features. Paid plans with included AI are coming soon!</p>
+                <button onClick={onOpenSettings} className="text-xs text-indigo-400 hover:text-indigo-300 mt-2 underline">Add API Keys →</button>
               </div>
             </div>
           </div>
