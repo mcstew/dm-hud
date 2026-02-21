@@ -201,9 +201,11 @@ returns uuid as $$
 $$ language sql security definer stable;
 
 -- PROFILES policies
+-- NOTE: wrapping is_superuser() in (select ...) lets Postgres evaluate it once
+-- per statement instead of per row, preventing circular RLS evaluation hangs
 create policy "Users can read own profile"
   on public.profiles for select
-  using (id = auth.uid() or public.is_superuser());
+  using (id = auth.uid() or (select public.is_superuser()));
 
 create policy "Users can insert own profile"
   on public.profiles for insert
@@ -216,12 +218,12 @@ create policy "Users can update own profile"
 
 create policy "Superusers can update any profile"
   on public.profiles for update
-  using (public.is_superuser());
+  using ((select public.is_superuser()));
 
 -- CAMPAIGNS policies
 create policy "Users can read own campaigns"
   on public.campaigns for select
-  using (user_id = auth.uid() or public.is_superuser());
+  using (user_id = auth.uid() or (select public.is_superuser()));
 
 create policy "Users can insert own campaigns"
   on public.campaigns for insert
@@ -238,7 +240,7 @@ create policy "Users can delete own campaigns"
 -- SESSIONS policies
 create policy "Users can read own sessions"
   on public.sessions for select
-  using (public.campaign_owner(campaign_id) = auth.uid() or public.is_superuser());
+  using (public.campaign_owner(campaign_id) = auth.uid() or (select public.is_superuser()));
 
 create policy "Users can insert own sessions"
   on public.sessions for insert
@@ -255,7 +257,7 @@ create policy "Users can delete own sessions"
 -- CARDS policies
 create policy "Users can read own cards"
   on public.cards for select
-  using (public.campaign_owner(campaign_id) = auth.uid() or public.is_superuser());
+  using (public.campaign_owner(campaign_id) = auth.uid() or (select public.is_superuser()));
 
 create policy "Users can insert own cards"
   on public.cards for insert
@@ -272,7 +274,7 @@ create policy "Users can delete own cards"
 -- PLAYER ROSTER policies
 create policy "Users can read own roster"
   on public.player_roster for select
-  using (public.campaign_owner(campaign_id) = auth.uid() or public.is_superuser());
+  using (public.campaign_owner(campaign_id) = auth.uid() or (select public.is_superuser()));
 
 create policy "Users can insert own roster"
   on public.player_roster for insert
@@ -294,7 +296,7 @@ create policy "Users can read own transcripts"
       select 1 from public.sessions s
       join public.campaigns c on c.id = s.campaign_id
       where s.id = transcript_entries.session_id
-      and (c.user_id = auth.uid() or public.is_superuser())
+      and (c.user_id = auth.uid() or (select public.is_superuser()))
     )
   );
 
@@ -317,7 +319,7 @@ create policy "Users can read own events"
       select 1 from public.sessions s
       join public.campaigns c on c.id = s.campaign_id
       where s.id = events.session_id
-      and (c.user_id = auth.uid() or public.is_superuser())
+      and (c.user_id = auth.uid() or (select public.is_superuser()))
     )
   );
 
@@ -335,7 +337,7 @@ create policy "Users can insert own events"
 -- AI LOGS policies
 create policy "Users can read own ai logs"
   on public.ai_logs for select
-  using (user_id = auth.uid() or public.is_superuser());
+  using (user_id = auth.uid() or (select public.is_superuser()));
 
 create policy "Service role can insert ai logs"
   on public.ai_logs for insert
