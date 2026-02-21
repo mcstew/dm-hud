@@ -3,15 +3,12 @@ import { supabase } from './supabase';
 
 const AuthContext = createContext(null);
 
-// Direct fetch to PostgREST with a hard timeout via AbortController
-// This bypasses the Supabase JS client which doesn't reliably abort
-async function fetchProfileDirect(userId, timeoutMs = 4000) {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-  // Get the current session token for RLS
-  const { data: { session } } = await supabase.auth.getSession();
-  const accessToken = session?.access_token;
+// Direct fetch to PostgREST with a hard timeout via AbortController
+// accessToken is passed in directly to avoid re-calling getSession()
+async function fetchProfileDirect(userId, accessToken, timeoutMs = 4000) {
   if (!accessToken) {
     console.warn('[auth] No access token for profile fetch');
     return null;
@@ -24,10 +21,11 @@ async function fetchProfileDirect(userId, timeoutMs = 4000) {
   }, timeoutMs);
 
   try {
-    const url = `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=*`;
+    console.log('[auth] Fetching profile for', userId);
+    const url = `${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=*`;
     const res = await fetch(url, {
       headers: {
-        'apikey': supabaseKey,
+        'apikey': SUPABASE_KEY,
         'Authorization': `Bearer ${accessToken}`,
         'Accept': 'application/vnd.pgrst.object+json',
       },
@@ -87,16 +85,16 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const mountedRef = useRef(true);
 
-  // Fetch profile with retry — tries up to 3 times with increasing timeouts
-  const fetchProfile = async (userId) => {
-    const attempts = [4000, 4000, 6000]; // timeout per attempt
+  // Fetch profile with retry — pass accessToken directly
+  const fetchProfile = async (userId, accessToken) => {
+    const attempts = [4000, 4000, 6000];
     for (let i = 0; i < attempts.length; i++) {
       if (!mountedRef.current) return null;
       if (i > 0) {
         console.log(`[auth] Retry ${i}/${attempts.length - 1}...`);
         await new Promise(r => setTimeout(r, 500));
       }
-      const result = await fetchProfileDirect(userId, attempts[i]);
+      const result = await fetchProfileDirect(userId, accessToken, attempts[i]);
       if (result) return result;
     }
     console.error('[auth] All profile fetch attempts failed');
@@ -111,11 +109,11 @@ export function AuthProvider({ children }) {
       console.log('[auth] onAuthStateChange:', event);
 
       const currentUser = session?.user ?? null;
+      const accessToken = session?.access_token ?? null;
       setUser(currentUser);
 
-      if (currentUser) {
-        let p = await fetchProfile(currentUser.id);
-        // If profile is null, it might not exist yet — try creating
+      if (currentUser && accessToken) {
+        let p = await fetchProfile(currentUser.id, accessToken);
         if (!p && mountedRef.current) {
           p = await createProfile(currentUser.id);
         }
@@ -182,7 +180,8 @@ export function AuthProvider({ children }) {
 
   const refreshProfile = async () => {
     if (user) {
-      const p = await fetchProfile(user.id);
+      const { data: { session } } = await supabase.auth.getSession();
+      const p = await fetchProfile(user.id, session?.access_token);
       setProfile(p);
     }
   };
