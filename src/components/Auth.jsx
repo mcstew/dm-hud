@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { IconKey, IconUser, IconSword } from '@tabler/icons-react';
 import { useAuth } from '../lib/auth';
 
 export default function Auth() {
-  const [mode, setMode] = useState('login'); // 'login' or 'signup'
+  const [searchParams] = useSearchParams();
+  const [mode, setMode] = useState(searchParams.get('mode') === 'signup' ? 'signup' : 'login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');

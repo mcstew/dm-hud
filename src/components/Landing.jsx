@@ -45,7 +45,7 @@ export default function Landing() {
                   Sign In
                 </Link>
                 <Link
-                  to="/login"
+                  to="/login?mode=signup"
                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors"
                 >
                   Try for Free
@@ -75,7 +75,7 @@ export default function Landing() {
         </p>
         <div className="flex items-center justify-center gap-4">
           <Link
-            to={isLoggedIn ? '/app' : '/login'}
+            to={isLoggedIn ? '/app' : '/login?mode=signup'}
             className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-xl transition-colors flex items-center gap-2 text-sm"
           >
             {isLoggedIn ? 'Open App' : 'Get Started Free'} <IconArrowRight size={18} />
@@ -176,7 +176,7 @@ export default function Landing() {
             DM HUD is free during beta. Create an account and start running smarter games today.
           </p>
           <Link
-            to={isLoggedIn ? '/app' : '/login'}
+            to={isLoggedIn ? '/app' : '/login?mode=signup'}
             className="inline-flex items-center gap-2 px-8 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-xl transition-colors"
           >
             {isLoggedIn ? 'Open App' : 'Try for Free'} <IconArrowRight size={18} />
