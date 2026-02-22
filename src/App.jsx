@@ -1436,6 +1436,8 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
   const streamRef = useRef(null);
   const transcriptBufferRef = useRef('');
   const bufferTimerRef = useRef(null);
+  const [liveInterim, setLiveInterim] = useState(''); // Current interim text for display
+  const interimRef = useRef('');
 
   const startLiveSession = async () => {
     if (!settings.deepgramKey) {
@@ -1447,8 +1449,16 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
       setError(null);
       setLiveStatus('requesting');
 
-      // Request microphone access
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Request microphone access with optimized constraints for speech recognition
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+          sampleRate: { ideal: 16000 },
+        }
+      });
       streamRef.current = stream;
 
       setLiveStatus('connecting');
@@ -1467,9 +1477,21 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
         }
       }
 
-      // Connect to Deepgram WebSocket
+      // Connect to Deepgram WebSocket with optimized parameters
+      const dgParams = new URLSearchParams({
+        model: 'nova-2',
+        language: 'en',
+        smart_format: 'true',
+        diarize: 'true',
+        punctuate: 'true',
+        interim_results: 'true',       // Stream words as they're recognized
+        utterance_end_ms: '1500',      // Detect end of speech after 1.5s silence
+        vad_events: 'true',            // Voice activity detection
+        encoding: 'opus',
+        sample_rate: '48000',          // WebM/Opus default from browser
+      });
       const ws = new WebSocket(
-        `wss://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&diarize=true&punctuate=true&interim_results=false`,
+        `wss://api.deepgram.com/v1/listen?${dgParams.toString()}`,
         ['token', deepgramToken]
       );
 
@@ -1479,11 +1501,15 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
         setLiveStatus('recording');
         setIsLive(true);
 
-        // Start recording
-        const mediaRecorder = new MediaRecorder(stream, {
-          mimeType: 'audio/webm;codecs=opus'
-        });
+        // Choose a supported mimeType
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : MediaRecorder.isTypeSupported('audio/webm')
+            ? 'audio/webm'
+            : '';
 
+        const recorderOpts = mimeType ? { mimeType } : {};
+        const mediaRecorder = new MediaRecorder(stream, recorderOpts);
         mediaRecorderRef.current = mediaRecorder;
 
         mediaRecorder.ondataavailable = (event) => {
@@ -1492,39 +1518,76 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
           }
         };
 
-        mediaRecorder.start(250); // Send audio chunks every 250ms
+        // 500ms chunks — better frame integrity over network than 250ms
+        mediaRecorder.start(500);
       };
 
       ws.onmessage = (message) => {
         const data = JSON.parse(message.data);
 
-        if (data.type === 'Results' && data.channel?.alternatives?.[0]?.transcript) {
-          const transcript = data.channel.alternatives[0].transcript;
+        // Handle UtteranceEnd — flush buffer when Deepgram detects speech pause
+        if (data.type === 'UtteranceEnd') {
+          if (transcriptBufferRef.current.trim()) {
+            const bufferedText = transcriptBufferRef.current.trim();
+            console.log(`🎤 UtteranceEnd flush (${bufferedText.length} chars)`);
+            onProcess(`DM: ${bufferedText}`);
+            transcriptBufferRef.current = '';
+            interimRef.current = '';
+            setLiveInterim('');
+          }
+          return;
+        }
 
-          if (transcript.trim()) {
-            // Buffer transcript chunks to prevent incomplete sentence processing
+        if (data.type === 'Results' && data.channel?.alternatives?.[0]) {
+          const alt = data.channel.alternatives[0];
+          const transcript = alt.transcript || '';
+          const isFinal = data.is_final;
+
+          if (!transcript.trim()) return;
+
+          if (isFinal) {
+            // Final result — append to buffer for AI processing
             transcriptBufferRef.current += ' ' + transcript;
+            interimRef.current = '';
+            setLiveInterim('');
 
             // Clear existing timer
-            if (bufferTimerRef.current) {
-              clearTimeout(bufferTimerRef.current);
+            if (bufferTimerRef.current) clearTimeout(bufferTimerRef.current);
+
+            // Flush if sentence ends with punctuation (quick flush)
+            // Otherwise wait for more speech or UtteranceEnd
+            const endsWithPunctuation = /[.!?]\s*$/.test(transcriptBufferRef.current.trim());
+
+            if (endsWithPunctuation) {
+              bufferTimerRef.current = setTimeout(() => {
+                const bufferedText = transcriptBufferRef.current.trim();
+                if (bufferedText) {
+                  console.log(`🎤 Punctuation flush (${bufferedText.length} chars)`);
+                  onProcess(`DM: ${bufferedText}`);
+                  transcriptBufferRef.current = '';
+                }
+              }, 300);
+            } else {
+              // Fallback flush after 3s of no new finals (UtteranceEnd should catch this first)
+              bufferTimerRef.current = setTimeout(() => {
+                const bufferedText = transcriptBufferRef.current.trim();
+                if (bufferedText) {
+                  console.log(`🎤 Timeout flush (${bufferedText.length} chars)`);
+                  onProcess(`DM: ${bufferedText}`);
+                  transcriptBufferRef.current = '';
+                }
+              }, 3000);
             }
+          } else {
+            // Interim result — show in UI immediately for real-time feel
+            // (These are partial, will be replaced by the final result)
+            interimRef.current = transcript;
+          }
 
-            // Flush buffer after 2 seconds of silence (complete thought)
-            // OR if buffer ends with sentence-ending punctuation
-            const endsWithPunctuation = /[.!?;]\s*$/.test(transcriptBufferRef.current.trim());
-            const delay = endsWithPunctuation ? 500 : 2000;
-
-            bufferTimerRef.current = setTimeout(() => {
-              const bufferedText = transcriptBufferRef.current.trim();
-              if (bufferedText) {
-                // Determine speaker (you could enhance this with voice recognition)
-                const speaker = data.channel_index?.[0] === 0 ? 'DM' : 'Player';
-                console.log(`🎤 Flushing buffered transcript (${bufferedText.length} chars)`);
-                onProcess(`${speaker}: ${bufferedText}`);
-                transcriptBufferRef.current = '';
-              }
-            }, delay);
+          // Update the live transcript display with buffer + interim
+          const displayText = (transcriptBufferRef.current + ' ' + interimRef.current).trim();
+          if (displayText) {
+            setLiveInterim(displayText);
           }
         }
       };
@@ -1535,8 +1598,9 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
         stopLiveSession();
       };
 
-      ws.onclose = () => {
-        if (liveStatus === 'recording') {
+      ws.onclose = (event) => {
+        console.log('WebSocket closed:', event.code, event.reason);
+        if (isLive) {
           stopLiveSession();
         }
       };
@@ -1580,6 +1644,8 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
 
     setIsLive(false);
     setLiveStatus('idle');
+    setLiveInterim('');
+    interimRef.current = '';
   };
 
   const transcribe = async () => {
@@ -1670,9 +1736,16 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
       {error && <div className="text-xs text-red-400 mb-2 p-2 bg-red-900/20 rounded">{error}</div>}
 
       {isLive && (
-        <div className="flex items-center gap-2 text-xs text-emerald-400">
-          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-          <span>LIVE - Listening...</span>
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2 text-xs text-emerald-400">
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+            <span>LIVE - Listening...</span>
+          </div>
+          {liveInterim && (
+            <div className="text-xs text-gray-500 italic pl-4 border-l-2 border-gray-700 max-h-12 overflow-hidden">
+              {liveInterim}
+            </div>
+          )}
         </div>
       )}
 
