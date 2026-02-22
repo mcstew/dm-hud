@@ -1478,6 +1478,9 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
       }
 
       // Connect to Deepgram WebSocket with optimized parameters
+      // NOTE: Do NOT specify encoding/sample_rate — Deepgram auto-detects
+      // the WebM/Opus container format from MediaRecorder. Specifying them
+      // tells Deepgram to expect raw frames, causing decode failures.
       const dgParams = new URLSearchParams({
         model: 'nova-2',
         language: 'en',
@@ -1487,8 +1490,6 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
         interim_results: 'true',       // Stream words as they're recognized
         utterance_end_ms: '1500',      // Detect end of speech after 1.5s silence
         vad_events: 'true',            // Voice activity detection
-        encoding: 'opus',
-        sample_rate: '48000',          // WebM/Opus default from browser
       });
       const ws = new WebSocket(
         `wss://api.deepgram.com/v1/listen?${dgParams.toString()}`,
