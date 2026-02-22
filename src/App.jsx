@@ -1436,8 +1436,34 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
   const streamRef = useRef(null);
   const transcriptBufferRef = useRef('');
   const bufferTimerRef = useRef(null);
-  const [liveInterim, setLiveInterim] = useState(''); // Current interim text for display
+  const keepaliveRef = useRef(null);
+  const isLiveRef = useRef(false); // Ref mirror of isLive for use in closures
+  const [liveInterim, setLiveInterim] = useState('');
   const interimRef = useRef('');
+
+  // Ensure previous session is fully cleaned up
+  const cleanupSession = () => {
+    if (keepaliveRef.current) {
+      clearInterval(keepaliveRef.current);
+      keepaliveRef.current = null;
+    }
+    if (bufferTimerRef.current) {
+      clearTimeout(bufferTimerRef.current);
+      bufferTimerRef.current = null;
+    }
+    if (mediaRecorderRef.current) {
+      try { mediaRecorderRef.current.stop(); } catch (e) { /* already stopped */ }
+      mediaRecorderRef.current = null;
+    }
+    if (socketRef.current) {
+      try { socketRef.current.close(); } catch (e) { /* already closed */ }
+      socketRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+  };
 
   const startLiveSession = async () => {
     if (!settings.deepgramKey) {
@@ -1449,17 +1475,21 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
       setError(null);
       setLiveStatus('requesting');
 
+      // Clean up any leftover state from a previous session
+      cleanupSession();
+
       // Request microphone access with optimized constraints for speech recognition
+      console.log('🎤 Requesting microphone access...');
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
           channelCount: 1,
-          sampleRate: { ideal: 16000 },
         }
       });
       streamRef.current = stream;
+      console.log('🎤 Microphone access granted');
 
       setLiveStatus('connecting');
 
@@ -1467,11 +1497,12 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
       let deepgramToken = settings.deepgramKey;
       if (deepgramToken === '__managed__') {
         try {
+          console.log('🎤 Fetching Deepgram key from Edge Function...');
           deepgramToken = await aiService.getDeepgramKey();
+          console.log('🎤 Deepgram key received');
         } catch (e) {
           setError('Failed to get Deepgram key from server. Edge Functions may not be deployed yet.');
-          streamRef.current?.getTracks().forEach(t => t.stop());
-          streamRef.current = null;
+          cleanupSession();
           setLiveStatus('idle');
           return;
         }
@@ -1479,18 +1510,19 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
 
       // Connect to Deepgram WebSocket with optimized parameters
       // NOTE: Do NOT specify encoding/sample_rate — Deepgram auto-detects
-      // the WebM/Opus container format from MediaRecorder. Specifying them
-      // tells Deepgram to expect raw frames, causing decode failures.
+      // the WebM/Opus container format from MediaRecorder.
       const dgParams = new URLSearchParams({
         model: 'nova-2',
         language: 'en',
         smart_format: 'true',
         diarize: 'true',
         punctuate: 'true',
-        interim_results: 'true',       // Stream words as they're recognized
-        utterance_end_ms: '1500',      // Detect end of speech after 1.5s silence
-        vad_events: 'true',            // Voice activity detection
+        interim_results: 'true',
+        utterance_end_ms: '1500',
+        vad_events: 'true',
       });
+
+      console.log('🎤 Opening Deepgram WebSocket...');
       const ws = new WebSocket(
         `wss://api.deepgram.com/v1/listen?${dgParams.toString()}`,
         ['token', deepgramToken]
@@ -1499,8 +1531,18 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
       socketRef.current = ws;
 
       ws.onopen = () => {
+        console.log('🎤 WebSocket connected, starting MediaRecorder...');
         setLiveStatus('recording');
         setIsLive(true);
+        isLiveRef.current = true;
+
+        // Send keepalive every 8 seconds to prevent Deepgram timeout
+        // Deepgram closes connections that don't receive data within its timeout window
+        keepaliveRef.current = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'KeepAlive' }));
+          }
+        }, 8000);
 
         // Choose a supported mimeType
         const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
@@ -1509,18 +1551,25 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
             ? 'audio/webm'
             : '';
 
+        console.log('🎤 Using mimeType:', mimeType || '(browser default)');
         const recorderOpts = mimeType ? { mimeType } : {};
         const mediaRecorder = new MediaRecorder(stream, recorderOpts);
         mediaRecorderRef.current = mediaRecorder;
 
+        let chunkCount = 0;
         mediaRecorder.ondataavailable = (event) => {
           if (event.data.size > 0 && ws.readyState === WebSocket.OPEN) {
+            chunkCount++;
+            if (chunkCount <= 3) {
+              console.log(`🎤 Sending audio chunk #${chunkCount} (${event.data.size} bytes)`);
+            }
             ws.send(event.data);
           }
         };
 
-        // 500ms chunks — better frame integrity over network than 250ms
-        mediaRecorder.start(500);
+        // Request initial data immediately, then every 250ms for responsiveness
+        mediaRecorder.start(250);
+        console.log('🎤 MediaRecorder started (250ms chunks)');
       };
 
       ws.onmessage = (message) => {
@@ -1550,13 +1599,11 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
             // Final result — append to buffer for AI processing
             transcriptBufferRef.current += ' ' + transcript;
             interimRef.current = '';
-            setLiveInterim('');
 
             // Clear existing timer
             if (bufferTimerRef.current) clearTimeout(bufferTimerRef.current);
 
             // Flush if sentence ends with punctuation (quick flush)
-            // Otherwise wait for more speech or UtteranceEnd
             const endsWithPunctuation = /[.!?]\s*$/.test(transcriptBufferRef.current.trim());
 
             if (endsWithPunctuation) {
@@ -1569,7 +1616,7 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
                 }
               }, 300);
             } else {
-              // Fallback flush after 3s of no new finals (UtteranceEnd should catch this first)
+              // Fallback flush after 3s (UtteranceEnd should catch this first)
               bufferTimerRef.current = setTimeout(() => {
                 const bufferedText = transcriptBufferRef.current.trim();
                 if (bufferedText) {
@@ -1580,12 +1627,11 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
               }, 3000);
             }
           } else {
-            // Interim result — show in UI immediately for real-time feel
-            // (These are partial, will be replaced by the final result)
+            // Interim result — show in UI for real-time feel
             interimRef.current = transcript;
           }
 
-          // Update the live transcript display with buffer + interim
+          // Update live transcript display
           const displayText = (transcriptBufferRef.current + ' ' + interimRef.current).trim();
           if (displayText) {
             setLiveInterim(displayText);
@@ -1594,21 +1640,22 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
       };
 
       ws.onerror = (err) => {
-        console.error('WebSocket error:', err);
-        setError('Connection error');
-        stopLiveSession();
+        console.error('🎤 WebSocket error:', err);
+        setError('Connection error — try again');
       };
 
       ws.onclose = (event) => {
-        console.log('WebSocket closed:', event.code, event.reason);
-        if (isLive) {
+        console.log(`🎤 WebSocket closed: ${event.code} ${event.reason || ''}`);
+        // Only auto-cleanup if we were actively recording
+        if (isLiveRef.current) {
           stopLiveSession();
         }
       };
 
     } catch (e) {
-      console.error('Live session error:', e);
+      console.error('🎤 Live session error:', e);
       setError(e.message || 'Microphone access denied');
+      cleanupSession();
       setLiveStatus('idle');
     }
   };
@@ -1625,25 +1672,14 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
       transcriptBufferRef.current = '';
     }
 
-    // Stop media recorder
-    if (mediaRecorderRef.current) {
-      mediaRecorderRef.current.stop();
-      mediaRecorderRef.current = null;
+    // Send close message to Deepgram before closing
+    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+      try { socketRef.current.send(JSON.stringify({ type: 'CloseStream' })); } catch (e) { /* ok */ }
     }
 
-    // Close WebSocket
-    if (socketRef.current) {
-      socketRef.current.close();
-      socketRef.current = null;
-    }
-
-    // Stop media stream
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-
+    cleanupSession();
     setIsLive(false);
+    isLiveRef.current = false;
     setLiveStatus('idle');
     setLiveInterim('');
     interimRef.current = '';
