@@ -11,6 +11,30 @@ import {
   IconArrowRight,
 } from '@tabler/icons-react';
 
+const structuredData = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "DM HUD",
+  "applicationCategory": "GameApplication",
+  "operatingSystem": "Web",
+  "description": "Real-time AI-powered dashboard for Dungeon Masters. Automatically tracks characters, locations, items, and plot threads during D&D sessions.",
+  "url": "https://dmhud.com",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD",
+    "description": "Free during beta"
+  },
+  "featureList": [
+    "Live session transcription",
+    "AI entity extraction",
+    "Character and NPC tracking",
+    "Combat and exploration modes",
+    "AI-generated session reports",
+    "Campaign management"
+  ]
+};
+
 export default function Landing() {
   const { user, loading } = useAuth();
 
@@ -19,8 +43,12 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       {/* Nav */}
-      <nav className="border-b border-gray-800/50 backdrop-blur-md bg-gray-950/80 sticky top-0 z-30">
+      <nav className="border-b border-gray-800/50 backdrop-blur-md bg-gray-950/80 sticky top-0 z-30" aria-label="Main navigation">
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-indigo-600/20 rounded-lg flex items-center justify-center">
@@ -56,13 +84,14 @@ export default function Landing() {
         </div>
       </nav>
 
+      <main>
       {/* Hero */}
-      <section className="max-w-5xl mx-auto px-6 pt-24 pb-20 text-center">
+      <section className="max-w-5xl mx-auto px-6 pt-24 pb-20 text-center" aria-labelledby="hero-heading">
         <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-600/10 border border-indigo-500/20 rounded-full text-xs text-indigo-400 font-medium mb-6">
           <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
           Now in Beta
         </div>
-        <h1 className="text-5xl md:text-6xl font-bold tracking-tight mb-6">
+        <h1 id="hero-heading" className="text-5xl md:text-6xl font-bold tracking-tight mb-6">
           <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-emerald-400 bg-clip-text text-transparent">
             Real-Time Intelligence
           </span>
@@ -87,12 +116,22 @@ export default function Landing() {
             See How It Works
           </a>
         </div>
+
+        {/* Hero image */}
+        <div className="mt-16 relative">
+          <div className="absolute -inset-4 bg-gradient-to-b from-indigo-600/20 via-transparent to-transparent rounded-3xl blur-2xl" />
+          <img
+            src="/images/og-hero.jpg"
+            alt="A Dungeon Master's table with character sheets, a DM screen, dice, and a hand-drawn dungeon map"
+            className="relative w-full rounded-2xl border border-gray-800 shadow-2xl shadow-indigo-950/50"
+          />
+        </div>
       </section>
 
       {/* Problem */}
-      <section className="max-w-5xl mx-auto px-6 py-16">
+      <section className="max-w-5xl mx-auto px-6 py-16" aria-labelledby="problem-heading">
         <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8 md:p-12">
-          <h2 className="text-2xl font-bold text-white mb-4">The Problem Every DM Knows</h2>
+          <h2 id="problem-heading" className="text-2xl font-bold text-white mb-4">The Problem Every DM Knows</h2>
           <div className="grid md:grid-cols-3 gap-6 mt-8">
             <div className="space-y-2">
               <div className="text-3xl">📝</div>
@@ -116,13 +155,34 @@ export default function Landing() {
               </p>
             </div>
           </div>
+          {/* Problem illustration */}
+          <div className="mt-8 overflow-hidden rounded-xl border border-gray-800">
+            <img
+              src="/images/sheet-notes.jpg"
+              alt="A handwritten character sheet with equipment lists and session notes — the analog tracking DM HUD replaces"
+              className="w-full object-cover opacity-70 hover:opacity-90 transition-opacity"
+              style={{ maxHeight: '280px' }}
+            />
+          </div>
         </div>
       </section>
 
+      {/* Dice divider */}
+      <div className="max-w-5xl mx-auto px-6">
+        <div className="overflow-hidden rounded-xl border border-gray-800">
+          <img
+            src="/images/dice-banner.jpg"
+            alt="Colorful polyhedral dice scattered across a wooden table"
+            className="w-full object-cover opacity-60"
+            style={{ maxHeight: '160px' }}
+          />
+        </div>
+      </div>
+
       {/* Features */}
-      <section id="features" className="max-w-5xl mx-auto px-6 py-16">
+      <section id="features" className="max-w-5xl mx-auto px-6 py-16" aria-labelledby="features-heading">
         <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-white mb-3">Your AI Co-Pilot at the Table</h2>
+          <h2 id="features-heading" className="text-3xl font-bold text-white mb-3">Your AI Co-Pilot at the Table</h2>
           <p className="text-gray-400 max-w-xl mx-auto">
             DM HUD runs alongside your session, doing the busywork so you can focus on what matters — telling a great story.
           </p>
@@ -169,9 +229,9 @@ export default function Landing() {
       </section>
 
       {/* CTA */}
-      <section className="max-w-5xl mx-auto px-6 py-20">
+      <section className="max-w-5xl mx-auto px-6 py-20" aria-labelledby="cta-heading">
         <div className="text-center bg-gradient-to-b from-indigo-600/10 to-transparent border border-indigo-500/20 rounded-2xl p-12">
-          <h2 className="text-3xl font-bold text-white mb-3">Ready to Level Up Your Sessions?</h2>
+          <h2 id="cta-heading" className="text-3xl font-bold text-white mb-3">Ready to Level Up Your Sessions?</h2>
           <p className="text-gray-400 mb-8 max-w-lg mx-auto">
             DM HUD is free during beta. Create an account and start running smarter games today.
           </p>
@@ -183,6 +243,7 @@ export default function Landing() {
           </Link>
         </div>
       </section>
+      </main>
 
       {/* Footer */}
       <footer className="border-t border-gray-800/50 py-8">
