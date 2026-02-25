@@ -155,15 +155,6 @@ export default function Landing() {
               </p>
             </div>
           </div>
-          {/* Problem illustration */}
-          <div className="mt-8 overflow-hidden rounded-xl border border-gray-800">
-            <img
-              src="/images/sheet-notes.jpg"
-              alt="A handwritten character sheet with equipment lists and session notes — the analog tracking DM HUD replaces"
-              className="w-full object-cover opacity-70 hover:opacity-90 transition-opacity"
-              style={{ maxHeight: '280px' }}
-            />
-          </div>
         </div>
       </section>
 
