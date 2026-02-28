@@ -363,6 +363,78 @@ export async function addEvents(sessionId, eventsData) {
 }
 
 // ============================================
+// REPORTS
+// ============================================
+
+export async function fetchReports(campaignId, { sessionId = null, scope = null } = {}) {
+  let query = supabase
+    .from('reports')
+    .select('*')
+    .eq('campaign_id', campaignId)
+    .order('created_at', { ascending: false });
+
+  if (sessionId) query = query.eq('session_id', sessionId);
+  if (scope) query = query.eq('scope', scope);
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return data;
+}
+
+export async function createReport(userId, campaignId, sessionId, scope, reportData) {
+  const { data, error } = await supabase
+    .from('reports')
+    .insert({
+      user_id: userId,
+      campaign_id: campaignId,
+      session_id: sessionId || null,
+      scope,
+      report_data: reportData,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteReport(id) {
+  const { error } = await supabase
+    .from('reports')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw error;
+}
+
+// ============================================
+// CAMPAIGN TRANSCRIPTS (cross-session)
+// ============================================
+
+export async function fetchAllCampaignTranscripts(campaignId) {
+  const { data: sessionData, error: sessionError } = await supabase
+    .from('sessions')
+    .select('id, name')
+    .eq('campaign_id', campaignId)
+    .order('start_time', { ascending: true });
+
+  if (sessionError) throw sessionError;
+  if (!sessionData.length) return { entries: [], sessionMap: {} };
+
+  const sessionMap = Object.fromEntries(sessionData.map(s => [s.id, s.name]));
+  const sessionIds = sessionData.map(s => s.id);
+
+  const { data, error } = await supabase
+    .from('transcript_entries')
+    .select('*')
+    .in('session_id', sessionIds)
+    .order('created_at', { ascending: true });
+
+  if (error) throw error;
+  return { entries: data || [], sessionMap };
+}
+
+// ============================================
 // PLAYER ROSTER
 // ============================================
 

@@ -103,6 +103,30 @@ export function dbEventToFrontend(dbEvent) {
   };
 }
 
+// ── Report: DB → Frontend ──
+export function dbReportToFrontend(dbReport) {
+  return {
+    id: dbReport.id,
+    userId: dbReport.user_id,
+    campaignId: dbReport.campaign_id,
+    sessionId: dbReport.session_id,
+    scope: dbReport.scope,
+    reportData: dbReport.report_data,
+    createdAt: dbReport.created_at,
+  };
+}
+
+// ── Campaign Transcript Entry: DB → Frontend (with session name) ──
+export function dbCampaignTranscriptToFrontend(dbEntry, sessionName) {
+  return {
+    id: dbEntry.id,
+    speaker: dbEntry.speaker,
+    text: dbEntry.text,
+    timestamp: dbEntry.timestamp,
+    sessionName: sessionName || 'Session',
+  };
+}
+
 // ── Roster Entry: DB → Frontend ──
 export function dbRosterToFrontend(dbEntry) {
   return {

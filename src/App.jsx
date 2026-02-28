@@ -40,7 +40,7 @@ import {
 import { useAuth } from './lib/auth';
 import * as dbOps from './lib/db';
 import * as aiService from './lib/ai';
-import { dbCardToFrontend, dbSessionToFrontend, dbTranscriptToFrontend, dbEventToFrontend, dbRosterToFrontend, dbCampaignToFrontend } from './lib/mappers';
+import { dbCardToFrontend, dbSessionToFrontend, dbTranscriptToFrontend, dbEventToFrontend, dbRosterToFrontend, dbCampaignToFrontend, dbReportToFrontend, dbCampaignTranscriptToFrontend } from './lib/mappers';
 
 // ============================================
 // DM HUD v3.0 - Multi-User + Supabase
@@ -392,27 +392,84 @@ const ArcModal = ({ isOpen, onClose, arc, onSave }) => {
 };
 
 // Unified Tools Panel - Account, Campaign, Session tabs
-const ToolsPanel = ({ isOpen, onClose, campaign, sessions, currentSession, cards, settings, onSaveSettings, onGenerateReport }) => {
+const ToolsPanel = ({ isOpen, onClose, campaign, sessions, currentSession, transcript, cards, settings, onSaveSettings, onGenerateReport, userId }) => {
   const [activeTab, setActiveTab] = useState('account'); // 'account', 'campaign', 'session'
   const [activeSubTab, setActiveSubTab] = useState('artifacts'); // 'artifacts', 'settings'
   const [localSettings, setLocalSettings] = useState(settings);
   const [report, setReport] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [exportingTranscript, setExportingTranscript] = useState(false);
+  const [savedReports, setSavedReports] = useState([]);
+  const [loadingReports, setLoadingReports] = useState(false);
+  const [expandedReportId, setExpandedReportId] = useState(null);
+  const [campaignTranscriptCount, setCampaignTranscriptCount] = useState(null);
 
   useEffect(() => { setLocalSettings(settings); }, [settings, isOpen]);
-  useEffect(() => { if (!isOpen) setReport(null); }, [isOpen]);
+  useEffect(() => {
+    if (!isOpen) {
+      setReport(null);
+      setSavedReports([]);
+      setExpandedReportId(null);
+      setCampaignTranscriptCount(null);
+    }
+  }, [isOpen]);
+
+  // Load saved reports when panel opens or tab changes
+  useEffect(() => {
+    if (!isOpen || !campaign?.id) return;
+    let cancelled = false;
+
+    const loadReports = async () => {
+      setLoadingReports(true);
+      try {
+        let reports;
+        if (activeTab === 'session' && currentSession?.id) {
+          reports = await dbOps.fetchReports(campaign.id, { sessionId: currentSession.id, scope: 'session' });
+        } else if (activeTab === 'campaign') {
+          reports = await dbOps.fetchReports(campaign.id, { scope: 'campaign' });
+        } else {
+          reports = [];
+        }
+        if (!cancelled) setSavedReports(reports.map(dbReportToFrontend));
+      } catch (err) {
+        console.error('Failed to load reports:', err);
+        if (!cancelled) setSavedReports([]);
+      } finally {
+        if (!cancelled) setLoadingReports(false);
+      }
+    };
+
+    loadReports();
+    return () => { cancelled = true; };
+  }, [isOpen, activeTab, campaign?.id, currentSession?.id]);
+
+  // Load campaign transcript count when campaign tab is active
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'campaign' || !campaign?.id) return;
+    let cancelled = false;
+
+    dbOps.fetchAllCampaignTranscripts(campaign.id)
+      .then(({ entries }) => { if (!cancelled) setCampaignTranscriptCount(entries.length); })
+      .catch(() => { if (!cancelled) setCampaignTranscriptCount(0); });
+
+    return () => { cancelled = true; };
+  }, [isOpen, activeTab, campaign?.id]);
 
   if (!isOpen) return null;
 
   const campaignName = campaign?.name || 'Campaign';
-  const sessionTranscript = currentSession?.transcript || [];
+  const sessionTranscript = transcript || [];
 
   // Get all transcripts across all sessions for campaign-level export
-  const getAllTranscripts = () => {
-    return (sessions || []).flatMap(s =>
-      (s.transcript || []).map(t => ({ ...t, sessionName: s.name || 'Session' }))
-    );
+  const getAllTranscripts = async () => {
+    if (!campaign?.id) return [];
+    try {
+      const { entries, sessionMap } = await dbOps.fetchAllCampaignTranscripts(campaign.id);
+      return entries.map(e => dbCampaignTranscriptToFrontend(e, sessionMap[e.session_id]));
+    } catch (err) {
+      console.error('Failed to fetch campaign transcripts:', err);
+      return [];
+    }
   };
 
   // Client-side merge: combine consecutive same-speaker entries within time threshold
@@ -459,7 +516,7 @@ const ToolsPanel = ({ isOpen, onClose, campaign, sessions, currentSession, cards
   };
 
   const exportTranscript = async (scope = 'session') => {
-    const transcriptData = scope === 'campaign' ? getAllTranscripts() : sessionTranscript;
+    const transcriptData = scope === 'campaign' ? await getAllTranscripts() : sessionTranscript;
     if (!transcriptData.length) return;
 
     setExportingTranscript(true);
@@ -498,9 +555,24 @@ const ToolsPanel = ({ isOpen, onClose, campaign, sessions, currentSession, cards
   const generateReportHandler = async (scope = 'session') => {
     setGenerating(true);
     try {
-      // For now, session-level only; campaign report could aggregate all sessions
       const generatedReport = await onGenerateReport(currentSession, cards);
       setReport(generatedReport);
+
+      // Persist report to database
+      if (campaign?.id && userId) {
+        try {
+          const dbReport = await dbOps.createReport(
+            userId,
+            campaign.id,
+            scope === 'session' ? currentSession?.id : null,
+            scope,
+            generatedReport
+          );
+          setSavedReports(prev => [dbReportToFrontend(dbReport), ...prev]);
+        } catch (err) {
+          console.error('Failed to save report:', err);
+        }
+      }
     } catch (error) {
       console.error('Failed to generate report:', error);
     } finally {
@@ -508,26 +580,23 @@ const ToolsPanel = ({ isOpen, onClose, campaign, sessions, currentSession, cards
     }
   };
 
-  const exportReport = () => {
-    if (!report) return;
-    const sessionName = currentSession?.name || 'Session';
-    const markdown = `# ${sessionName} - Session Report\n\n${report.recap ? `## Recap\n${report.recap}\n\n` : ''}${report.mvp ? `## MVP\n**${report.mvp.character}** - ${report.mvp.reason}\n\n` : ''}${report.highlights?.length ? `## Highlights\n${report.highlights.map(h => `- ${h}`).join('\n')}\n\n` : ''}${report.quotes?.length ? `## Memorable Quotes\n${report.quotes.map(q => `> "${q.text}" - ${q.character}`).join('\n\n')}\n\n` : ''}${report.events?.length ? `## Key Events\n${report.events.map(e => `- **${e.character}**: ${e.detail}`).join('\n')}\n` : ''}`;
+  const downloadReport = (reportData, sessionName) => {
+    const name = sessionName || currentSession?.name || 'Session';
+    const markdown = `# ${name} - Session Report\n\n${reportData.recap ? `## Recap\n${reportData.recap}\n\n` : ''}${reportData.mvp ? `## MVP\n**${reportData.mvp.character}** - ${reportData.mvp.reason}\n\n` : ''}${reportData.highlights?.length ? `## Highlights\n${reportData.highlights.map(h => `- ${h}`).join('\n')}\n\n` : ''}${reportData.quotes?.length ? `## Memorable Quotes\n${reportData.quotes.map(q => `> "${q.text}" - ${q.character}`).join('\n\n')}\n\n` : ''}${reportData.events?.length ? `## Key Events\n${reportData.events.map(e => `- **${e.character}**: ${e.detail}`).join('\n')}\n` : ''}`;
 
     const blob = new Blob([markdown], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${(currentSession?.name || 'Session').replace(/\s+/g, '-')}-report.md`;
+    a.download = `${name.replace(/\s+/g, '-')}-report.md`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
-  const totalTranscriptEntries = getAllTranscripts().length;
-
   // Artifacts Section Component
   const ArtifactsSection = ({ scope }) => {
     const isSession = scope === 'session';
-    const transcriptCount = isSession ? sessionTranscript.length : totalTranscriptEntries;
+    const transcriptCount = isSession ? sessionTranscript.length : (campaignTranscriptCount ?? '...');
 
     return (
       <div className="space-y-6">
@@ -566,6 +635,51 @@ const ToolsPanel = ({ isOpen, onClose, campaign, sessions, currentSession, cards
           <p className="text-sm text-gray-400 mb-3">
             Generate a report with highlights, MVP, memorable quotes, and key events.
           </p>
+
+          {/* Previous reports */}
+          {loadingReports ? (
+            <p className="text-xs text-gray-500 mb-3">Loading previous reports...</p>
+          ) : savedReports.length > 0 && (
+            <div className="mb-4 space-y-2">
+              <h5 className="text-xs text-gray-500 uppercase tracking-wide">Previous Reports</h5>
+              {savedReports.map((r) => (
+                <div key={r.id} className="bg-gray-900 rounded-lg border border-gray-700/50">
+                  <button
+                    onClick={() => setExpandedReportId(expandedReportId === r.id ? null : r.id)}
+                    className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-gray-800/50 rounded-lg transition-colors"
+                  >
+                    <span className="text-sm text-gray-300">
+                      {new Date(r.createdAt).toLocaleDateString()} {new Date(r.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    <IconChevronDown size={14} className={`text-gray-500 transition-transform ${expandedReportId === r.id ? 'rotate-180' : ''}`} />
+                  </button>
+                  {expandedReportId === r.id && (
+                    <div className="px-3 pb-3 space-y-2">
+                      {r.reportData.recap && (
+                        <div className="text-sm text-gray-300 bg-gray-950 rounded p-2">
+                          <span className="text-indigo-400 font-medium text-xs">Recap:</span>
+                          <p className="mt-1">{r.reportData.recap}</p>
+                        </div>
+                      )}
+                      {r.reportData.mvp && (
+                        <div className="text-sm bg-amber-900/20 border border-amber-500/30 rounded p-2">
+                          <span className="text-amber-400 font-medium text-xs">MVP:</span> {r.reportData.mvp.character} — {r.reportData.mvp.reason}
+                        </div>
+                      )}
+                      <button
+                        onClick={() => downloadReport(r.reportData, currentSession?.name)}
+                        className="flex items-center gap-1 text-xs text-gray-400 hover:text-white transition-colors"
+                      >
+                        <IconDownload size={14} /> Download
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Current/just-generated report or Generate button */}
           {!report ? (
             <Button
               variant="primary"
@@ -573,7 +687,7 @@ const ToolsPanel = ({ isOpen, onClose, campaign, sessions, currentSession, cards
               onClick={() => generateReportHandler(scope)}
               disabled={generating || !settings.anthropicKey}
             >
-              {generating ? 'Generating...' : 'Generate Report'}
+              {generating ? 'Generating...' : savedReports.length > 0 ? 'Generate New Report' : 'Generate Report'}
             </Button>
           ) : (
             <div className="space-y-3">
@@ -587,8 +701,8 @@ const ToolsPanel = ({ isOpen, onClose, campaign, sessions, currentSession, cards
                   <span className="text-amber-400 font-medium">MVP:</span> {report.mvp.character} — {report.mvp.reason}
                 </div>
               )}
-              <Button variant="ghost" size="sm" onClick={exportReport}>Export Report</Button>
-              <Button variant="ghost" size="sm" onClick={() => setReport(null)}>Generate New</Button>
+              <Button variant="ghost" size="sm" onClick={() => downloadReport(report, currentSession?.name)}>Export Report</Button>
+              <Button variant="ghost" size="sm" onClick={() => setReport(null)}>Done</Button>
             </div>
           )}
           {!settings.anthropicKey && <p className="text-xs text-amber-400 mt-2">API key required</p>}
@@ -2634,10 +2748,12 @@ const CampaignView = ({ campaign, onUpdateLocal, onBack, settings, onSaveSetting
         campaign={campaign}
         sessions={sessions}
         currentSession={currentSession}
+        transcript={transcript}
         cards={cards}
         settings={settings}
         onSaveSettings={onSaveSettings}
         onGenerateReport={generateReport}
+        userId={userId}
       />
 
       {/* Void (Graveyard) Button - Bottom Left */}
@@ -2833,10 +2949,12 @@ function AppCore() {
         campaign={null}
         sessions={[]}
         currentSession={null}
+        transcript={[]}
         cards={[]}
         settings={settings}
         onSaveSettings={onSaveSettings}
         onGenerateReport={() => {}}
+        userId={null}
       />
     </>
   );
