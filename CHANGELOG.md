@@ -2,6 +2,43 @@
 
 All notable changes to the DM HUD project will be documented in this file.
 
+## [0.9.0] - 2026-02-28
+
+### Multi-User Backend (Supabase)
+- **Full Supabase migration**: Moved from localStorage to Supabase PostgreSQL with Row Level Security
+- **Email/password auth**: Supabase Auth with `onAuthStateChange` as sole source of truth
+- **Edge Functions**: 5 deployed (ai-process, ai-riff, ai-report, ai-polish, get-deepgram-key)
+- **BYOK by default**: New users bring their own API keys; admin can toggle to managed mode
+
+### Design Refresh
+- **Unified Tools Panel**: Account, Campaign, and Session tabs replace scattered settings modals
+- **Tabler Icons**: Migrated to `@tabler/icons-react` (2px stroke) from custom SVGs
+- **The Void**: Soft-delete graveyard system (purple UI accent) — restore or permanently delete
+- **Color migration**: Slate palette replaced with Gray for consistency
+- **Smart transcript export**: Client-side merging + AI polishing pass
+
+### Landing Page & SEO
+- **Public landing page** at `/` with hero image, problem section, feature cards, dice divider, CTA
+- **SEO meta tags**: Title, description, keywords, canonical URL, Open Graph, Twitter Card (summary_large_image)
+- **Structured data**: JSON-LD SoftwareApplication schema
+- **Semantic HTML**: `<main>`, `aria-label`, `aria-labelledby` on sections
+- **Custom favicon**: d6 dice icon (Tabler-style, indigo gradient) with PNG variants (180/192/512px)
+- **Static assets**: robots.txt, sitemap.xml, site.webmanifest
+- **Landing page photos**: DM table hero image, polyhedral dice banner divider
+- **Social share card**: DM table photo as OG/Twitter image
+
+### Deployment & Infrastructure
+- **Vercel hosting**: Auto-deploys from GitHub `main` to dmhud.com
+- **Google Analytics**: G-BF4CM3GY22
+- **Admin panel**: Users list, AI logs, campaigns overview, stats dashboard
+
+### Auth & Reliability Fixes
+- Fixed auth loading deadlock (`getSession()` inside `onAuthStateChange`)
+- Fixed RLS circular evaluation (subselect wrapper for `is_superuser()`)
+- Optimized real-time transcription (interim results, utterance end, VAD events)
+- Fixed Deepgram WebSocket error 1011 (removed incorrect encoding/sample_rate params)
+- Added KeepAlive messages, session cleanup, CloseStream on stop
+
 ## [0.8.0] - 2026-01-14
 
 ### Major Features

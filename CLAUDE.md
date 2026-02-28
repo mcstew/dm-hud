@@ -123,7 +123,7 @@ UPDATE profiles SET is_superuser = true, key_mode = 'managed' WHERE email = 'use
 
 - **Monetization direction**: BYOK for free tier, managed keys for paid tier(s). Possible structure: $5/mo BYOK sub (app access only), higher rate all-inclusive with managed keys. No immediate changes needed — `key_mode` field is flexible enough. When ready, add `subscription_tier` and `subscription_expires_at` to profiles table.
 - **Beta messaging**: BYOK users see a friendly blue "🧪 Beta" callout encouraging them to bring their own keys, with "paid plans with included AI coming soon" copy. This appears in both the Settings panel (Account tab) and the Campaigns home page when keys aren't configured.
-- **Landing page**: Basic marketing splash at `/` (dmhud.com). Logged-out users see "Sign In" / "Try for Free". Logged-in users see "Open App". Placeholder for future enhancements (images, testimonials, product screenshots, demo video).
+- **Landing page**: Marketing page at `/` (dmhud.com) with hero image, problem section, feature cards, dice divider, and CTA. Logged-out users see "Sign In" / "Try for Free". Logged-in users see "Open App". Uses reference photos from the DM's own table (stored in `public/images/`). Social share card uses `og-hero.jpg` (DM screen + character sheets photo).
 
 ## Session Log — Feb 21, 2025
 
@@ -147,3 +147,39 @@ UPDATE profiles SET is_superuser = true, key_mode = 'managed' WHERE email = 'use
 5. **Performance profiling** — AI entity extraction pipeline timing. Are Edge Function cold starts causing delays? Is the Anthropic API response time acceptable?
 6. **Transcript quality tuning** — Even when transcription works, accuracy isn't perfect. Consider: Deepgram model selection (nova-2 vs nova-2-general), custom vocabulary for D&D terms, post-processing corrections.
 7. **Error UX** — When transcription silently fails, user sees "LIVE - Listening..." with no feedback. Consider adding a "no audio detected" warning after N seconds of silence, or a reconnect button.
+
+## Session Log — Feb 28, 2025
+
+### Completed
+1. **SEO pass on landing page** — Added comprehensive meta tags to `index.html`: title optimized with keywords, meta description, keywords, canonical URL, Open Graph (og:title, og:description, og:image, og:type, og:site_name, og:image:width/height), Twitter Card (summary_large_image), robots directive, application-name, and theme-color.
+2. **Structured data (JSON-LD)** — Added `SoftwareApplication` schema to `Landing.jsx` with name, description, features list, and free pricing. Injected via `dangerouslySetInnerHTML` script tag.
+3. **Semantic HTML improvements** — Wrapped landing page content sections in `<main>`, added `aria-label` to nav, `aria-labelledby` on all sections with corresponding heading IDs (`hero-heading`, `problem-heading`, `features-heading`, `cta-heading`).
+4. **Favicon — d6 dice icon** — Created custom SVG favicon based on Tabler Icons `dice-6` with the brand indigo gradient fill and light pips. Generated PNG variants at 180px (Apple touch icon), 192px, and 512px using `sharp-cli`. Replaced default Vite favicon.
+5. **Static SEO assets** — Created `public/` directory with: `robots.txt` (allows `/`, blocks `/app/` and `/admin/`, points to sitemap), `sitemap.xml` (lists `/` and `/login`), `site.webmanifest` (PWA manifest with app name, theme color, icon references).
+6. **Landing page images** — Optimized three reference photos for web (60-127KB each via sharp-cli): `og-hero.jpg` (DM table with character sheets, DM screen, map — used as hero image and OG/Twitter social card), `dice-banner.jpg` (polyhedral dice panoramic — used as visual divider between Problem and Features sections), `sheet-notes.jpg` (handwritten character sheet — kept in `public/images/` for future use but removed from page after visual review).
+7. **Social share card** — Updated OG and Twitter meta tags to use `og-hero.jpg` instead of favicon. Changed Twitter card type from `summary` to `summary_large_image` for bigger previews on Twitter/Slack/Discord.
+
+### Decisions
+- **Favicon approach**: Went with a simple, clean d6 using the Tabler Icons library (which the project already uses) rather than a complex custom illustration. Brand indigo gradient keeps it on-theme.
+- **Image hosting**: Images stored in `public/` directory, served by Vercel's edge CDN as static files. No external image service needed at current scale (~270KB total).
+- **Sheet image removed**: The handwritten character sheet photo (`sheet-notes.jpg`) was initially placed in the Problem section but removed — looked visually heavy back-to-back with the dice banner. Kept in `public/images/` for potential future use (e.g., a dedicated "how it works" page or blog post).
+- **robots.txt strategy**: `/app/` and `/admin/` blocked from crawling. Both are behind auth anyway, but the robots.txt serves as a signal to well-behaved bots.
+- **Reference images not committed**: The `reference/` folder (original high-res source photos) is not tracked in git. Only the optimized web versions in `public/images/` are committed.
+
+### Files Changed
+- `index.html` — Full SEO meta tags, favicon links, OG/Twitter cards
+- `src/components/Landing.jsx` — JSON-LD, semantic HTML, hero image, dice divider
+- `public/favicon.svg` — New d6 dice icon (Tabler-style)
+- `public/favicon-192.png`, `public/favicon-512.png`, `public/apple-touch-icon.png` — PNG variants
+- `public/robots.txt`, `public/sitemap.xml`, `public/site.webmanifest` — SEO assets
+- `public/images/og-hero.jpg`, `public/images/dice-banner.jpg`, `public/images/sheet-notes.jpg` — Optimized photos
+
+### Priority Next Steps (updated)
+1. **Stabilize live transcription** — Still the #1 issue from Feb 21. Inconsistent startup, sometimes silent.
+2. **Admin panel QA** — Never fully tested end-to-end.
+3. **Landing page enhancements** — Consider: app screenshots/demo GIF, testimonials, "how it works" walkthrough, the sheet-notes photo could fit a future section.
+4. **Discord OAuth** — Deferred. Needs Discord application setup.
+5. **Performance profiling** — Edge Function cold starts, AI pipeline timing.
+6. **Transcript quality tuning** — Deepgram model selection, D&D vocabulary.
+7. **Error UX** — "No audio detected" warning, reconnect button.
+8. **App.jsx decomposition** — Main file is 2,258 lines. Consider extracting components/hooks when making changes in that area.
