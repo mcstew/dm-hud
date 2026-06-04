@@ -9,6 +9,10 @@ const USAGE_LABELS = {
   live_transcription_seconds: 'Live transcription',
   file_transcription_seconds: 'File transcription',
   file_transcription_upload: 'File uploaded',
+  setup_transcription_seconds: 'Setup voice transcription',
+  setup_transcription_upload: 'Setup voice uploaded',
+  card_voice_transcription_seconds: 'Card voice transcription',
+  card_voice_transcription_upload: 'Card voice uploaded',
   transcription_error: 'Transcription error',
 };
 

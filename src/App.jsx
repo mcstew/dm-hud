@@ -2853,13 +2853,66 @@ const AudioPanel = ({ settings, onProcess, isProcessing, campaignId, sessionId, 
 };
 
 // Create Card Modal
-const CreateCardModal = ({ isOpen, onClose, onCreate, cardType }) => {
+const CreateCardModal = ({
+  isOpen,
+  onClose,
+  onCreate,
+  cardType,
+  settings,
+  campaignId,
+  sessionId,
+  existingCards = [],
+  roster = [],
+  dmContext = '',
+  keyterms = [],
+}) => {
   const [name, setName] = useState('');
   const [notes, setNotes] = useState('');
   const [hp, setHp] = useState('');
   const [isPC, setIsPC] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState('idle');
+  const [voiceError, setVoiceError] = useState(null);
+  const [voiceTranscript, setVoiceTranscript] = useState('');
+  const mediaRecorderRef = useRef(null);
+  const streamRef = useRef(null);
+  const chunksRef = useRef([]);
+
+  const stopVoiceTracks = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+  };
+
+  const resetForm = () => {
+    setName('');
+    setNotes('');
+    setHp('');
+    setIsPC(false);
+    setVoiceStatus('idle');
+    setVoiceError(null);
+    setVoiceTranscript('');
+    chunksRef.current = [];
+  };
+
+  useEffect(() => {
+    if (isOpen) resetForm();
+    return () => {
+      if (mediaRecorderRef.current?.state === 'recording') {
+        try {
+          mediaRecorderRef.current.ondataavailable = null;
+          mediaRecorderRef.current.onstop = null;
+          mediaRecorderRef.current.stop();
+        } catch (e) { /* already stopped */ }
+      }
+      mediaRecorderRef.current = null;
+      stopVoiceTracks();
+    };
+  }, [isOpen, cardType]);
 
   if (!isOpen) return null;
+
+  const voiceBusy = ['recording', 'transcribing', 'extracting'].includes(voiceStatus);
 
   const handleCreate = () => {
     if (!name.trim()) return;
@@ -2885,12 +2938,152 @@ const CreateCardModal = ({ isOpen, onClose, onCreate, cardType }) => {
         card.hp = { current: hpNum, max: hpNum };
       }
     }
-    onCreate(card);
-    setName('');
-    setNotes('');
-    setHp('');
-    setIsPC(false);
+    onCreate(card, voiceTranscript.trim() || null);
+    resetForm();
     onClose();
+  };
+
+  const applyVoiceDraft = (draft = {}) => {
+    if (draft.name) setName(String(draft.name).trim());
+    if (draft.notes) {
+      setNotes(prev => {
+        const current = prev.trim();
+        const incoming = String(draft.notes || '').trim();
+        if (!incoming) return prev;
+        if (!current) return incoming;
+        if (current.toLowerCase().includes(incoming.toLowerCase())) return current;
+        return `${current}\n${incoming}`;
+      });
+    }
+
+    if ((cardType === 'CHARACTER' || cardType === 'ENEMY') && draft.hp) {
+      const hpValue = Number(draft.hp.max ?? draft.hp.current);
+      if (Number.isFinite(hpValue) && hpValue > 0) setHp(String(Math.round(hpValue)));
+    }
+
+    if (cardType === 'CHARACTER' && typeof draft.isPC === 'boolean') {
+      setIsPC(draft.isPC);
+    }
+  };
+
+  const extractCardDraft = async (sourceTranscript) => {
+    const cleanTranscript = sourceTranscript.trim();
+    if (!cleanTranscript) throw new Error('No speech detected');
+
+    setVoiceStatus('extracting');
+    const cardContext = (existingCards || []).slice(-80).map(card => ({
+      type: card.type,
+      name: card.name,
+      notes: card.notes,
+      isPC: card.isPC,
+      inParty: card.inParty,
+      isHostile: card.isHostile,
+      inCombat: card.inCombat,
+    }));
+
+    const data = await aiService.parseCardDraft({
+      campaignId,
+      cardType,
+      transcript: cleanTranscript,
+      existingCards: cardContext,
+      roster,
+      dmContext,
+    });
+
+    const draft = data?.result?.card || {};
+    applyVoiceDraft(draft);
+    setVoiceStatus('ready');
+  };
+
+  const transcribeVoiceFill = async (blob) => {
+    try {
+      setVoiceStatus('transcribing');
+      setVoiceError(null);
+
+      const duration = await getAudioDuration(blob);
+      const { transcript: cardTranscript } = await transcribeWithDeepgram({
+        settings,
+        blob,
+        contentType: blob.type || 'audio/webm',
+        keyterms,
+      });
+
+      dbOps.recordUsageEvent({
+        eventType: duration ? 'card_voice_transcription_seconds' : 'card_voice_transcription_upload',
+        campaignId,
+        sessionId,
+        provider: 'deepgram',
+        model: DEEPGRAM_MODEL,
+        quantity: duration ? Math.round(duration) : blob.size,
+        unit: duration ? 'seconds' : 'bytes',
+        metadata: { cardType, keytermCount: keyterms.length },
+      }).catch(err => console.error('Failed to record card voice transcription usage:', err));
+
+      setVoiceTranscript(cardTranscript);
+      await extractCardDraft(cardTranscript);
+    } catch (e) {
+      setVoiceError(e.message || 'Voice fill failed');
+      setVoiceStatus('idle');
+    }
+  };
+
+  const startVoiceFill = async () => {
+    if (!settings?.deepgramKey) {
+      setVoiceError('Deepgram API key required');
+      return;
+    }
+    if (typeof MediaRecorder === 'undefined') {
+      setVoiceError('Voice recording is not supported in this browser');
+      return;
+    }
+
+    try {
+      setVoiceError(null);
+      setVoiceTranscript('');
+      chunksRef.current = [];
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+        },
+      });
+      streamRef.current = stream;
+
+      const mimeType = getSupportedAudioMimeType();
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data?.size > 0) chunksRef.current.push(event.data);
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: mimeType || 'audio/webm' });
+        stopVoiceTracks();
+        mediaRecorderRef.current = null;
+        if (blob.size > 0) {
+          transcribeVoiceFill(blob);
+        } else {
+          setVoiceError('No audio captured');
+          setVoiceStatus('idle');
+        }
+      };
+
+      recorder.start();
+      setVoiceStatus('recording');
+    } catch (e) {
+      stopVoiceTracks();
+      setVoiceError(e.message || 'Microphone access denied');
+      setVoiceStatus('idle');
+    }
+  };
+
+  const stopVoiceFill = () => {
+    if (mediaRecorderRef.current?.state === 'recording') {
+      setVoiceStatus('transcribing');
+      mediaRecorderRef.current.stop();
+    }
   };
 
   const typeLabels = {
@@ -2903,8 +3096,33 @@ const CreateCardModal = ({ isOpen, onClose, onCreate, cardType }) => {
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 rounded-xl border border-gray-800 w-full max-w-md p-6">
-        <h3 className="font-semibold text-lg mb-4">New {typeLabels[cardType]}</h3>
+      <div className="bg-gray-900 rounded-xl border border-gray-800 w-full max-w-md max-h-[90vh] overflow-y-auto p-6">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h3 className="font-semibold text-lg">New {typeLabels[cardType]}</h3>
+            {voiceStatus !== 'idle' && (
+              <p className="text-xs text-gray-500 mt-1">
+                {voiceStatus === 'recording' ? 'Recording...' : voiceStatus === 'transcribing' ? 'Transcribing...' : voiceStatus === 'extracting' ? 'Filling card...' : 'Voice fill ready'}
+              </p>
+            )}
+          </div>
+          {voiceStatus === 'recording' ? (
+            <Button variant="danger" size="sm" onClick={stopVoiceFill} className="flex items-center gap-1.5">{Icons.stop} Stop</Button>
+          ) : (
+            <Button variant="ghost" size="sm" onClick={startVoiceFill} disabled={voiceBusy} className="flex items-center gap-1.5">{Icons.audio} Voice Fill</Button>
+          )}
+        </div>
+        {voiceError && (
+          <div className="mb-3 p-2.5 bg-red-900/30 border border-red-500/40 rounded-lg">
+            <p className="text-red-300 text-xs">{voiceError}</p>
+          </div>
+        )}
+        {voiceTranscript && (
+          <div className="mb-3 p-3 bg-indigo-950/30 border border-indigo-500/30 rounded-lg">
+            <p className="text-[10px] uppercase tracking-wider text-indigo-300 mb-1">Voice Transcript</p>
+            <p className="text-xs text-indigo-100/80 italic leading-relaxed">"{voiceTranscript}"</p>
+          </div>
+        )}
         <div className="space-y-3">
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">Name</label>
@@ -3904,7 +4122,19 @@ const CampaignView = ({ campaign, onUpdateLocal, onBack, settings, onSaveSetting
       </div>
 
       <DetailDrawer card={selected} isOpen={!!selected} onClose={() => setSelected(null)} onUpdate={updateCard} onDelete={deleteCard} onGenerateRiff={genRiffFn} isGenerating={genRiff} onGetCharacterEvents={getCharacterEvents} />
-      <CreateCardModal isOpen={!!createModalType} onClose={() => setCreateModalType(null)} onCreate={addCard} cardType={createModalType} />
+      <CreateCardModal
+        isOpen={!!createModalType}
+        onClose={() => setCreateModalType(null)}
+        onCreate={addCard}
+        cardType={createModalType}
+        settings={settings}
+        campaignId={campaign.id}
+        sessionId={currentSessionId}
+        existingCards={activeCards}
+        roster={playerRoster}
+        dmContext={dmContext}
+        keyterms={deepgramKeyterms}
+      />
       <VoiceSetupPromptModal
         isOpen={showSetupPrompt}
         onClose={dismissSetupPrompt}

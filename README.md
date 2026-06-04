@@ -30,7 +30,7 @@ DM HUD acts as an always-listening second brain:
 - **Frontend:** React 18 + Vite 5 + Tailwind CSS 3.4
 - **Icons:** Tabler Icons React (`@tabler/icons-react`, 2px stroke)
 - **Backend:** Supabase (PostgreSQL + Auth + Edge Functions + RLS)
-- **AI:** Claude Haiku 4.5 (entity extraction, riffs, reports, setup extraction, transcript polishing)
+- **AI:** Claude Haiku 4.5 (entity extraction, riffs, reports, setup/card extraction, transcript polishing)
 - **Transcription:** Deepgram Nova-3 (real-time WebSocket streaming with contextual keyterms; uploaded audio uses paragraphing + diarization)
 - **Hosting:** Vercel (auto-deploys from GitHub `main`)
 - **Domain:** dmhud.com
@@ -63,6 +63,7 @@ DM HUD acts as an always-listening second brain:
 - Dynamic hostility flags, combat state auto-switching
 - Drag & drop reordering, inline HP/stats editing
 - Exploration mode (4 columns) and Combat mode (2 columns)
+- Voice Fill for manually creating characters, combat enemies, locations, items, and plot threads
 
 ### Character Events & Milestones
 - Automatic tracking of ability checks, saves, attacks, discoveries, level-ups
@@ -135,6 +136,7 @@ dm-hud/
 │       ├── ai-report/       # Session reports
 │       ├── ai-polish/       # Transcript polishing
 │       ├── ai-setup/        # Voice roster/arc setup extraction
+│       ├── ai-card/         # Voice manual-card draft extraction
 │       └── get-deepgram-key/
 ├── public/
 │   ├── favicon.svg          # d6 dice icon (Tabler-style)
@@ -176,6 +178,7 @@ dm-hud/
 - `ai-report` — Generate session/campaign reports
 - `ai-polish` — Polish transcripts
 - `ai-setup` — Extract campaign roster and arc from voice setup transcripts
+- `ai-card` — Extract one manual card draft from a spoken description
 - `get-deepgram-key` — Return Deepgram key based on user's key_mode
 
 ### Auth & Beta Key Modes
@@ -228,6 +231,7 @@ npm run preview   # Preview production build
 - Live real-time audio transcription (Deepgram Nova-3 WebSocket)
 - File upload transcription
 - Voice-driven roster and campaign arc setup
+- Voice Fill for manual card creation across all card categories
 - Smart transcript export with AI polishing
 - The Void (soft-delete graveyard)
 - Admin panel (users, AI logs, campaigns, stats)

@@ -88,6 +88,7 @@ Functions live in `supabase/functions/`:
 - `ai-report`
 - `ai-polish`
 - `ai-setup`
+- `ai-card`
 - `get-deepgram-key`
 
 Deploy one function:
@@ -104,6 +105,7 @@ npx supabase functions deploy ai-riff
 npx supabase functions deploy ai-report
 npx supabase functions deploy ai-polish
 npx supabase functions deploy ai-setup
+npx supabase functions deploy ai-card
 npx supabase functions deploy get-deepgram-key
 ```
 
@@ -119,6 +121,7 @@ Current migrations:
 - `002_reports_table.sql`
 - `003_profile_security_usage.sql`
 - `004_voice_setup_usage_events.sql`
+- `005_card_voice_fill_constraints.sql`
 
 Apply pending migrations with the Supabase CLI:
 
@@ -158,8 +161,9 @@ This is a manual beta comp-tab mechanism, not a billing system. There are no aut
 4. Confirm BYOK settings save.
 5. Toggle a test user to Managed in `/admin/users`.
 6. Create a new campaign and test the voice setup prompt.
-7. Test live transcription and file upload transcription.
-8. Check `/admin` stats, user detail, AI logs, and usage events.
+7. Test Voice Fill in manual card creation for at least one character/enemy and one non-character category.
+8. Test live transcription and file upload transcription.
+9. Check `/admin` stats, user detail, AI logs, and usage events.
 
 ---
 

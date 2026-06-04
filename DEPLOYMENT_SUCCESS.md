@@ -17,6 +17,7 @@
 - Supabase Edge Functions for AI and managed-key access
 - Deepgram Nova-3 transcription
 - Claude Haiku 4.5 AI workflows
+- Voice-driven setup and manual card drafting
 
 ---
 
@@ -47,6 +48,7 @@ Working:
 - Live Deepgram Nova-3 transcription
 - File upload transcription
 - Voice setup for roster and campaign arc
+- Voice Fill for manual card creation across card categories
 - The Void soft-delete flow
 
 Known risks:
@@ -93,7 +95,8 @@ Before a broader announcement, do one complete pass through:
 2. BYOK key entry
 3. Managed user toggle
 4. New campaign voice setup
-5. Live transcription
-6. File upload transcription
-7. Admin usage and AI logs
-8. Production Vercel deployment state
+5. Manual card Voice Fill
+6. Live transcription
+7. File upload transcription
+8. Admin usage and AI logs
+9. Production Vercel deployment state

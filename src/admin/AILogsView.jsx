@@ -28,12 +28,14 @@ export default function AILogsView({ userId = null, compact = false }) {
 
   useEffect(() => { loadLogs(); }, [userId, functionFilter, page]);
 
-  const FUNCTION_TYPES = ['entity_extraction', 'riff', 'report', 'polish'];
+  const FUNCTION_TYPES = ['entity_extraction', 'riff', 'report', 'polish', 'campaign_setup', 'card_voice_fill'];
   const FUNCTION_COLORS = {
     entity_extraction: 'text-indigo-400 bg-indigo-900/30',
     riff: 'text-amber-400 bg-amber-900/30',
     report: 'text-emerald-400 bg-emerald-900/30',
     polish: 'text-pink-400 bg-pink-900/30',
+    campaign_setup: 'text-cyan-400 bg-cyan-900/30',
+    card_voice_fill: 'text-violet-400 bg-violet-900/30',
   };
 
   return (

@@ -17,6 +17,12 @@ All notable changes to the DM HUD project will be documented in this file.
 - Added `ai-setup` Supabase Edge Function for conservative roster/arc extraction from free-form DM narration.
 - Added setup transcription usage event types for admin visibility.
 
+### Manual Card Voice Fill
+- Added Voice Fill to manual character, enemy, location, item, and plot creation.
+- Added `ai-card` Supabase Edge Function to turn a short spoken description into one editable card draft.
+- Voice-filled manual cards preserve the transcribed prompt as card genesis when created.
+- Added card voice transcription usage events and `card_voice_fill` AI log visibility.
+
 ### Security & Admin Visibility
 - Replaced broad client-side profile updates with scoped Supabase RPCs for BYOK settings and admin key-mode changes.
 - Added `usage_events` table and RPC-backed activity logging for app opens, live transcription duration, file transcription duration, and transcription errors.

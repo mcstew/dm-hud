@@ -64,6 +64,7 @@ Located in `supabase/functions/`.
 - `ai-report` - session/campaign reports
 - `ai-polish` - transcript polishing
 - `ai-setup` - voice roster/arc setup extraction
+- `ai-card` - voice manual-card draft extraction
 - `get-deepgram-key` - resolves Deepgram key based on BYOK vs Managed mode
 
 All Anthropic functions resolve keys server-side based on `profiles.key_mode`. Managed mode uses the Supabase `ANTHROPIC_API_KEY` secret; BYOK mode uses the user's stored key.
@@ -78,16 +79,19 @@ All Anthropic functions resolve keys server-side based on `profiles.key_mode`. M
 - Added voice campaign setup prompt after creating a campaign.
 - Added Voice Fill buttons in roster and arc modals.
 - Added `ai-setup` Edge Function for transcript-to-roster/arc extraction.
+- Added Voice Fill to manual card creation across characters, combat enemies, locations, items, and plot.
+- Added `ai-card` Edge Function for transcript-to-card draft extraction.
 - Improved roster merge behavior for voice setup clarifications.
 - Fixed roster upserts for client-generated temporary IDs.
 - Added usage-event types for setup transcription.
+- Added usage-event types for card voice transcription.
 - Updated `ai-polish` to use `claude-haiku-4-5`.
 
 ---
 
 ## Current Known Risks
 
-- Authenticated QA still needs a full real-account pass: signup, BYOK key entry, managed toggle, voice setup, live session, upload transcription, admin logs.
+- Authenticated QA still needs a full real-account pass: signup, BYOK key entry, managed toggle, voice setup, manual card voice fill, live session, upload transcription, admin logs.
 - AI can still create duplicate entities in some incremental processing cases, especially plural enemies clarified later.
 - Managed beta mode is a manual comp-tab switch, not a paid plan or quota system.
 - Live transcription currently treats audio as DM narration; uploaded audio can use diarization, but diarization remains imperfect.

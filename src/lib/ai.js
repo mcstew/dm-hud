@@ -83,6 +83,22 @@ export async function parseCampaignSetup({ campaignId, scope, transcript, existi
   return data;
 }
 
+export async function parseCardDraft({ campaignId, cardType, transcript, existingCards, roster, dmContext }) {
+  const { data, error } = await supabase.functions.invoke('ai-card', {
+    body: {
+      campaignId,
+      cardType,
+      transcript,
+      existingCards,
+      roster,
+      dmContext,
+    },
+  });
+
+  if (error) throw error;
+  return data;
+}
+
 export async function getDeepgramKey() {
   const { data, error } = await supabase.functions.invoke('get-deepgram-key');
   if (error) throw error;

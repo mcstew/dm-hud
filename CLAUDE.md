@@ -75,6 +75,7 @@ SUPABASE_ACCESS_TOKEN=<token> npx supabase functions deploy <name> --no-verify-j
 - `ai-report` — Session report generation
 - `ai-polish` — Transcript polishing
 - `ai-setup` — Voice-driven campaign setup extraction for roster and campaign arc
+- `ai-card` — Voice-driven manual card draft extraction for characters, enemies, locations, items, and plot
 - `get-deepgram-key` — Returns Deepgram key based on user's key_mode
 
 ## Live Transcription (Deepgram)
@@ -148,6 +149,14 @@ UPDATE profiles SET is_superuser = true, key_mode = 'managed' WHERE email = 'use
 5. **Fixed roster temp IDs** — Client-generated IDs no longer get sent as invalid UUID updates; non-UUID roster entries insert cleanly.
 6. **Updated Claude model alias** — `ai-polish` now uses the stable `claude-haiku-4-5` alias like the other Edge Functions.
 7. **Added usage-event support for setup transcription** — `setup_transcription_seconds` and `setup_transcription_upload` are now part of the usage event taxonomy.
+
+## Session Log — Jun 4, 2026
+
+### Completed
+1. **Added manual-card Voice Fill** — The manual create modal now supports voice fill for characters, combat enemies, locations, items, and plot threads. It records a short clip, transcribes with Deepgram Nova-3/keyterms, fills the modal fields, and stores the voice transcript as the card genesis when created.
+2. **Added `ai-card` Edge Function** — Extracts one conservative card draft from a spoken description using `claude-haiku-4-5`, verifies campaign ownership, resolves BYOK vs managed keys, and logs as `card_voice_fill`.
+3. **Expanded logging constraints** — `ai_logs` now allows `campaign_setup` and `card_voice_fill`; `usage_events` now allows card voice transcription events.
+4. **Admin visibility** — Admin AI log filters and user usage labels now include campaign setup and card voice fill activity.
 
 ### Priority Next Steps
 1. **Authenticated QA pass** — Test full signup/login, BYOK key entry, managed toggle, voice setup, live transcription, uploads, admin logs, and Vercel production behavior with a real Supabase session.
