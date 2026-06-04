@@ -15,8 +15,8 @@
 
 - **Site URL**: must be set to `https://dmhud.com` in Supabase → Authentication → URL Configuration
 - **Redirect URLs**: should include `https://dmhud.com/**` and optionally `https://dm-hud.vercel.app/**`
-- Discord OAuth: deferred (needs Discord Client ID setup)
-- Email/password auth enabled
+- Email/password auth enabled. Signup sends Supabase's normal confirmation email; this is not currently a magic-link-only flow.
+- Discord OAuth button is wired in the UI, but provider setup should be verified in Supabase before relying on it for launch.
 
 ## Environment Variables
 
@@ -38,8 +38,8 @@
 
 ## Key Architecture Decisions
 
-- **BYOK by default (beta)**: New users must provide their own API keys. Admin can toggle trusted beta testers to "managed" mode (uses owner's keys). Future: paid tiers will replace this — e.g. free/BYOK tier, paid "all-inclusive" tier with managed keys. The `key_mode` text field on profiles is already flexible enough to support new values (e.g. 'pro', 'free'). When productizing, add `subscription_tier` and/or `subscription_expires_at` to profiles.
-- **AI calls proxied through Edge Functions**: Browser → Supabase Edge Function → Anthropic API. Every call logged to `ai_logs` table.
+- **BYOK by default (beta)**: New users default to `key_mode = 'byok'` and must provide their own Anthropic and Deepgram keys. Admin can toggle trusted beta testers to `managed`, which means DM HUD uses Michael's server-side keys and Michael picks up those AI/transcription costs. Future paid tiers should replace this manual beta switch.
+- **AI calls proxied through Edge Functions**: Browser → Supabase Edge Function → Anthropic API. Every AI call is logged to `ai_logs`; app/transcription activity is logged to `usage_events`.
 - **Optimistic updates**: React state updates immediately, Supabase writes happen async.
 - **Mapper pattern**: DB uses snake_case, frontend uses camelCase. Mappers in `src/lib/mappers.js`.
 
@@ -74,16 +74,19 @@ SUPABASE_ACCESS_TOKEN=<token> npx supabase functions deploy <name> --no-verify-j
 - `ai-riff` — Riff generation
 - `ai-report` — Session report generation
 - `ai-polish` — Transcript polishing
+- `ai-setup` — Voice-driven campaign setup extraction for roster and campaign arc
 - `get-deepgram-key` — Returns Deepgram key based on user's key_mode
 
 ## Live Transcription (Deepgram)
 
-Real-time audio pipeline: Browser mic → MediaRecorder (WebM/Opus, 250ms chunks) → WebSocket → Deepgram Nova-2
+Real-time audio pipeline: Browser mic → MediaRecorder (WebM/Opus, 250ms chunks) → WebSocket → Deepgram Nova-3
 
 Key Deepgram parameters:
+- `model=nova-3` — current default for live transcription, file upload transcription, and voice setup transcription
 - `interim_results=true` — streams words as recognized (essential for real-time feel)
 - `utterance_end_ms=1500` — detects end of speech for buffer flushing
 - `vad_events=true` — voice activity detection
+- `keyterm=<term>` — up to 50 contextual terms from campaign name, roster names/aliases, and active card names
 - Do NOT specify `encoding` or `sample_rate` — Deepgram auto-detects WebM container format. Specifying them tells Deepgram to expect raw frames, causing decode failures (error 1011).
 
 Audio constraints: `echoCancellation`, `noiseSuppression`, `autoGainControl`, mono channel.
@@ -96,13 +99,15 @@ Reliability features:
 
 Transcript buffering: finals accumulate in buffer, flushed on UtteranceEnd event, sentence-ending punctuation (300ms delay), or 3s timeout fallback. Interim results shown as live preview below the recording indicator.
 
-**Current status (Feb 21)**: Transcription works but is inconsistent — sometimes takes 5-10s to start producing results, and occasionally produces no output at all in a fresh campaign. Needs further investigation. Possible causes: WebSocket connection timing, MediaRecorder first-chunk delivery, Deepgram cold start. Console logging is now detailed enough to diagnose.
+Live transcription intentionally does not request diarization right now because the app treats live transcript chunks as the DM narration stream. Uploaded audio still requests Deepgram paragraphs and `diarize_model=latest`.
+
+**Current status (Jun 3, 2026)**: Live transcription now uses Nova-3 and keyterms. This should help D&D/campaign vocabulary, but startup reliability and real-world session QA still need attention before launch.
 
 ## Database
 
 Schema in `supabase/migrations/001_initial_schema.sql`. Tables:
 - `profiles` — extends auth.users (key_mode, is_superuser, etc.)
-- `campaigns`, `sessions`, `cards`, `player_roster`, `transcript_entries`, `events`, `ai_logs`
+- `campaigns`, `sessions`, `cards`, `player_roster`, `transcript_entries`, `events`, `ai_logs`, `usage_events`
 - RLS enabled on all tables with helper functions `is_superuser()` and `campaign_owner()`
 - `handle_new_user` trigger auto-creates profile on signup
 - Default `key_mode` is `'byok'` (changed from `'managed'` for public beta)
@@ -125,6 +130,32 @@ UPDATE profiles SET is_superuser = true, key_mode = 'managed' WHERE email = 'use
 - **Beta messaging**: BYOK users see a friendly blue "🧪 Beta" callout encouraging them to bring their own keys, with "paid plans with included AI coming soon" copy. This appears in both the Settings panel (Account tab) and the Campaigns home page when keys aren't configured.
 - **Landing page**: Marketing page at `/` (dmhud.com) with hero image, problem section, feature cards, dice divider, and CTA. Logged-out users see "Sign In" / "Try for Free". Logged-in users see "Open App". Uses reference photos from the DM's own table (stored in `public/images/`). Social share card uses `og-hero.jpg` (DM screen + character sheets photo).
 
+## Beta Operations
+
+- Public users join through `/login` with email/password signup and default to BYOK.
+- BYOK users enter Anthropic and Deepgram keys in Tools → Account.
+- Superusers can open `/admin/users`, select a user, and toggle Key Mode from `BYOK` to `Managed`.
+- `Managed` is the beta comp-tab mode: Anthropic calls use the Supabase `ANTHROPIC_API_KEY` secret and Deepgram calls use the Supabase `DEEPGRAM_API_KEY` secret.
+- There is usage visibility but no hard quota, billing tier, or automated shutoff yet.
+
+## Session Log — Jun 3, 2026
+
+### Completed
+1. **Switched transcription to Deepgram Nova-3** — Shared helper now uses `nova-3` for live, file upload, and voice setup transcription. Live transcription adds contextual `keyterm` parameters and no longer requests unused live diarization.
+2. **Added voice campaign setup** — New campaigns prompt the DM to configure roster and arc by voice. Roster and Arc modals also have Voice Fill buttons. The review step lets the DM edit the transcript-derived roster and arc before saving.
+3. **Added `ai-setup` Edge Function** — Extracts player roster and campaign arc from a free-form setup transcript using `claude-haiku-4-5`, verifies campaign ownership, resolves BYOK vs managed keys, and logs to `ai_logs`.
+4. **Improved roster merging** — Voice setup merges partial existing roster rows and avoids duplicate rows when a player/character is clarified later.
+5. **Fixed roster temp IDs** — Client-generated IDs no longer get sent as invalid UUID updates; non-UUID roster entries insert cleanly.
+6. **Updated Claude model alias** — `ai-polish` now uses the stable `claude-haiku-4-5` alias like the other Edge Functions.
+7. **Added usage-event support for setup transcription** — `setup_transcription_seconds` and `setup_transcription_upload` are now part of the usage event taxonomy.
+
+### Priority Next Steps
+1. **Authenticated QA pass** — Test full signup/login, BYOK key entry, managed toggle, voice setup, live transcription, uploads, admin logs, and Vercel production behavior with a real Supabase session.
+2. **Quota/billing design** — If managed mode becomes a paid plan, add subscription fields, monthly transcription/AI limits, and a user-facing usage meter.
+3. **Combat duplicate reconciliation** — Continue improving batch/entity reconciliation for plural enemies and late clarifications.
+4. **Discord OAuth decision** — Either finish provider setup or hide/remove the Discord button before launch.
+5. **Launch docs/storytelling** — Update external-facing copy once the beta operations model and managed-plan language are settled.
+
 ## Session Log — Feb 21, 2025
 
 ### Completed
@@ -145,7 +176,7 @@ UPDATE profiles SET is_superuser = true, key_mode = 'managed' WHERE email = 'use
 3. **Landing page polish** — Current version is text-only. Add product screenshots, feature illustrations, possibly a demo video or animated GIF showing the app in action.
 4. **Discord OAuth** — Deferred. Needs Discord application setup and Client ID. Add to Supabase auth providers when ready.
 5. **Performance profiling** — AI entity extraction pipeline timing. Are Edge Function cold starts causing delays? Is the Anthropic API response time acceptable?
-6. **Transcript quality tuning** — Even when transcription works, accuracy isn't perfect. Consider: Deepgram model selection (nova-2 vs nova-2-general), custom vocabulary for D&D terms, post-processing corrections.
+6. **Transcript quality tuning** — Even when transcription works, accuracy isn't perfect. Continue evaluating Deepgram model settings, keyterms, D&D vocabulary handling, and post-processing corrections.
 7. **Error UX** — When transcription silently fails, user sees "LIVE - Listening..." with no feedback. Consider adding a "no audio detected" warning after N seconds of silence, or a reconnect button.
 
 ## Session Log — Feb 28, 2025

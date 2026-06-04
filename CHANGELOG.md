@@ -4,15 +4,31 @@ All notable changes to the DM HUD project will be documented in this file.
 
 ## [Unreleased] - 2026-06-03
 
+### AI & Transcription
+- Switched Deepgram transcription from Nova-2 to Nova-3 for live, file upload, and voice setup transcription.
+- Added contextual Deepgram keyterms from campaign names, roster player/character names, aliases, and active card names.
+- Removed unused live diarization from the WebSocket flow while preserving uploaded-audio paragraphing and diarization.
+- Standardized transcript polishing on the stable `claude-haiku-4-5` model alias.
+
+### Voice Campaign Setup
+- Added a dismissible new-campaign prompt to configure player roster and campaign arc by voice.
+- Added Voice Fill actions to the roster and arc modals.
+- Added review/edit step for extracted setup transcript, roster entries, and campaign arc before saving.
+- Added `ai-setup` Supabase Edge Function for conservative roster/arc extraction from free-form DM narration.
+- Added setup transcription usage event types for admin visibility.
+
 ### Security & Admin Visibility
 - Replaced broad client-side profile updates with scoped Supabase RPCs for BYOK settings and admin key-mode changes.
 - Added `usage_events` table and RPC-backed activity logging for app opens, live transcription duration, file transcription duration, and transcription errors.
 - Expanded admin stats with weekly active users, campaign/session counts, AI errors, and transcription minutes.
 - Expanded admin user detail with session/transcript counts and recent usage events.
+- Documented the current beta join paradigm: email/password signup defaults to BYOK; admins can toggle trusted testers to Managed so server-side Anthropic/Deepgram keys cover usage.
 
 ### Bug Fixes
 - Fixed manual enemy creation to store enemies as hostile `CHARACTER` cards, matching the unified character schema.
 - Updated BYOK settings copy so it no longer claims application-level key encryption.
+- Fixed roster upserts so client-generated temporary IDs insert cleanly instead of being treated as invalid UUID updates.
+- Improved voice roster merge behavior so clarifications enrich existing player/character rows instead of creating obvious duplicates.
 
 ## [0.9.0] - 2026-02-28
 

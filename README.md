@@ -30,8 +30,8 @@ DM HUD acts as an always-listening second brain:
 - **Frontend:** React 18 + Vite 5 + Tailwind CSS 3.4
 - **Icons:** Tabler Icons React (`@tabler/icons-react`, 2px stroke)
 - **Backend:** Supabase (PostgreSQL + Auth + Edge Functions + RLS)
-- **AI:** Claude Haiku 4.5 (entity extraction, riffs, reports, transcript polishing)
-- **Transcription:** Deepgram Nova-2 (real-time WebSocket streaming with speaker diarization)
+- **AI:** Claude Haiku 4.5 (entity extraction, riffs, reports, setup extraction, transcript polishing)
+- **Transcription:** Deepgram Nova-3 (real-time WebSocket streaming with contextual keyterms; uploaded audio uses paragraphing + diarization)
 - **Hosting:** Vercel (auto-deploys from GitHub `main`)
 - **Domain:** dmhud.com
 - **Analytics:** Google Analytics (G-BF4CM3GY22)
@@ -41,10 +41,10 @@ DM HUD acts as an always-listening second brain:
 ## Features
 
 ### Live Audio Transcription
-- Real-time speech-to-text via Deepgram Nova-2 WebSocket
+- Real-time speech-to-text via Deepgram Nova-3 WebSocket
+- Contextual keyterms from campaign name, roster names/aliases, and active card names
 - Intelligent buffering prevents incomplete sentence extraction
-- Speaker diarization (DM vs Players)
-- File upload support for pre-recorded sessions
+- File upload support for pre-recorded sessions with paragraphing and diarization
 - Smart transcript export with AI polishing
 
 ### AI-Powered Entity Tracking
@@ -77,6 +77,7 @@ DM HUD acts as an always-listening second brain:
 - Multi-session support with session archives
 - Player roster (real name to character name mapping)
 - Campaign arc (DM-only secrets that inform AI suggestions)
+- Voice setup for new campaigns, roster, and arc: DMs can ramble context aloud, review the extracted fields, and save
 
 ### The Void
 - Deleted cards go to The Void instead of permanent deletion
@@ -124,12 +125,16 @@ dm-hud/
 │       └── mappers.js       # snake_case <-> camelCase
 ├── supabase/
 │   ├── migrations/
-│   │   └── 001_initial_schema.sql
+│   │   ├── 001_initial_schema.sql
+│   │   ├── 002_reports_table.sql
+│   │   ├── 003_profile_security_usage.sql
+│   │   └── 004_voice_setup_usage_events.sql
 │   └── functions/           # Edge Functions
 │       ├── ai-process/      # Entity extraction
 │       ├── ai-riff/         # Riff generation
 │       ├── ai-report/       # Session reports
 │       ├── ai-polish/       # Transcript polishing
+│       ├── ai-setup/        # Voice roster/arc setup extraction
 │       └── get-deepgram-key/
 ├── public/
 │   ├── favicon.svg          # d6 dice icon (Tabler-style)
@@ -162,6 +167,7 @@ dm-hud/
 - `transcript_entries` — session transcripts
 - `events` — character milestones
 - `ai_logs` — AI call audit trail
+- `usage_events` — app/transcription activity for admin visibility
 - RLS enabled on all tables
 
 ### Edge Functions
@@ -169,7 +175,15 @@ dm-hud/
 - `ai-riff` — Generate riff suggestions
 - `ai-report` — Generate session/campaign reports
 - `ai-polish` — Polish transcripts
+- `ai-setup` — Extract campaign roster and arc from voice setup transcripts
 - `get-deepgram-key` — Return Deepgram key based on user's key_mode
+
+### Auth & Beta Key Modes
+- Public users join through `/login` with email/password signup and email confirmation.
+- New users default to `BYOK` and must add Anthropic + Deepgram keys in the Tools panel.
+- Superusers can use `/admin/users` to toggle trusted beta users to `Managed`.
+- Managed users use server-side Supabase secrets for Anthropic and Deepgram, so the project owner pays for those AI/transcription calls.
+- There is admin usage visibility, but no paid billing tier, monthly quota, or automated shutoff yet.
 
 ---
 
@@ -192,6 +206,8 @@ Opens at http://localhost:3000
 4. Enter your Deepgram API key
 5. Save
 
+Managed beta users do not need to enter keys; an admin must toggle their account to Managed first.
+
 ### Build
 ```bash
 npm run build     # Production build to dist/
@@ -209,11 +225,13 @@ npm run preview   # Preview production build
 - HP, conditions, and stats tracking
 - Exploration/Combat mode switching
 - AI entity extraction, riff generation, session reports
-- Live real-time audio transcription (Deepgram WebSocket)
+- Live real-time audio transcription (Deepgram Nova-3 WebSocket)
 - File upload transcription
+- Voice-driven roster and campaign arc setup
 - Smart transcript export with AI polishing
 - The Void (soft-delete graveyard)
 - Admin panel (users, AI logs, campaigns, stats)
+- Admin usage visibility and BYOK/Managed key-mode toggle
 - Landing page with SEO, OG/Twitter cards, structured data
 - Custom d6 favicon, robots.txt, sitemap, web manifest
 
@@ -224,7 +242,8 @@ npm run preview   # Preview production build
 - No collaborative/multiplayer support
 - No VTT integrations (Roll20, Foundry, etc.)
 - AI occasionally misses entities or creates duplicates
-- Speaker diarization is imperfect
+- Live transcription currently treats audio as DM narration; uploaded audio diarization is still imperfect
+- Managed beta usage has observability but no hard quotas or billing enforcement
 
 ---
 

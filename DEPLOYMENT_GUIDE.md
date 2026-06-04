@@ -1,344 +1,184 @@
-# DM HUD - Deployment Guide
+# DM HUD Deployment Guide
 
-Version 0.8.0 is ready for deployment! This guide covers GitHub and Vercel setup.
+**Current status:** live beta at [dmhud.com](https://dmhud.com)
 
----
-
-## ✅ Pre-Deployment Checklist
-
-- [x] All code committed to git
-- [x] Version bumped to 0.8.0
-- [x] README.md updated
-- [x] CHANGELOG.md created
-- [x] vercel.json configured
-- [x] Dev server tested locally
-- [ ] Pushed to GitHub
-- [ ] Deployed to Vercel
+This project is no longer a static-only/localStorage app. It is a Vercel + Supabase application with Auth, PostgreSQL, RLS, RPCs, and Edge Functions.
 
 ---
 
-## 📦 GitHub Setup
+## Production
 
-### Option 1: GitHub Website (Recommended)
+- Domain: `https://dmhud.com`
+- Hosting: Vercel project `dm-hud`
+- GitHub repo: `github.com/mcstew/dm-hud`
+- Deploy model: pushes to `main` auto-deploy through Vercel
+- Supabase project ref: `gfxjwjsgrtkybsamcrwa`
 
-1. **Create Repository**
-   - Go to https://github.com/new
-   - Repository name: `dm-hud`
-   - Description: `Real-time AI-powered assistant for D&D 5.5e Dungeon Masters`
-   - Visibility: **Public** (no secrets in code)
-   - Don't initialize with README (we have one)
-   - Click "Create repository"
+---
 
-2. **Push Local Code**
-   ```bash
-   cd "/Users/michael/Desktop/Claude Code/dm-hud"
-   git remote add origin https://github.com/YOUR_USERNAME/dm-hud.git
-   git branch -M main
-   git push -u origin main
-   ```
+## Required Vercel Environment Variables
 
-3. **Create Release Tag**
-   ```bash
-   git tag -a v0.8.0 -m "v0.8.0: Major feature update - Entity system redesign, Events, Session reports"
-   git push origin v0.8.0
-   ```
-
-4. **Create GitHub Release** (Optional but recommended)
-   - Go to your repo → Releases → Draft a new release
-   - Choose tag: `v0.8.0`
-   - Release title: `v0.8.0 - Entity System Redesign & Session Reports`
-   - Description: Copy from CHANGELOG.md
-   - Publish release
-
-### Option 2: GitHub CLI
+Set these in the Vercel project:
 
 ```bash
-# Install GitHub CLI if needed
-brew install gh
+VITE_SUPABASE_URL
+VITE_SUPABASE_ANON_KEY
+```
 
-# Authenticate
-gh auth login
+The anon key is safe for the browser; Supabase RLS and RPC boundaries protect user data.
 
-# Create repo and push
-cd "/Users/michael/Desktop/Claude Code/dm-hud"
-gh repo create dm-hud --public --source=. --remote=origin --push --description "Real-time AI-powered assistant for D&D 5.5e Dungeon Masters"
+---
 
-# Create release
-gh release create v0.8.0 --title "v0.8.0 - Entity System Redesign & Session Reports" --notes-file CHANGELOG.md
+## Required Supabase Edge Function Secrets
+
+Set these in Supabase:
+
+```bash
+ANTHROPIC_API_KEY
+DEEPGRAM_API_KEY
+SUPABASE_SERVICE_ROLE_KEY
+```
+
+Managed beta users consume these server-side keys. BYOK users use their own stored keys.
+
+---
+
+## Local Development
+
+```bash
+npm install
+npm run dev
+```
+
+Local dev defaults to `http://localhost:3000`.
+
+Build check:
+
+```bash
+npm run build
 ```
 
 ---
 
-## 🚀 Vercel Deployment
+## Deploy Frontend
 
-### Why Vercel?
-- Perfect for static React apps
-- Automatic HTTPS
-- Global CDN
-- Zero config for Vite
-- Free tier is generous
-- Automatic deployments on push
-
-### Safety Confirmation
-✅ **100% safe to deploy publicly**
-- No API keys in code (users bring their own)
-- No backend server
-- All processing client-side
-- No sensitive data stored on server
-- No database connections
-
-### Option 1: Vercel Dashboard (Easiest)
-
-1. **Connect GitHub**
-   - Go to https://vercel.com
-   - Sign up/login with GitHub
-   - Click "Add New Project"
-   - Import your `dm-hud` repository
-
-2. **Configure Project**
-   - Framework Preset: **Vite** (auto-detected)
-   - Root Directory: `./` (default)
-   - Build Command: `npm run build` (auto-detected)
-   - Output Directory: `dist` (auto-detected)
-   - Install Command: `npm install` (auto-detected)
-   - No environment variables needed
-
-3. **Deploy**
-   - Click "Deploy"
-   - Wait ~2 minutes for build
-   - Get your URL: `https://dm-hud.vercel.app` (or similar)
-
-4. **Configure Domain** (Optional)
-   - Settings → Domains
-   - Add custom domain if you have one
-   - Or use the Vercel-provided subdomain
-
-### Option 2: Vercel CLI
+Normal flow:
 
 ```bash
-# Install Vercel CLI
-npm i -g vercel
+git push origin main
+```
 
-# Login
-vercel login
+Vercel builds and deploys automatically.
 
-# Navigate to project
-cd "/Users/michael/Desktop/Claude Code/dm-hud"
+Manual Vercel deploys are still possible:
 
-# Deploy to preview
-vercel
-
-# Deploy to production
+```bash
+vercel deploy
 vercel --prod
-
-# Set up automatic deployments
-# (Vercel will auto-deploy on every git push)
 ```
 
-### Post-Deployment
-
-After deploying, Vercel gives you:
-- **Preview URL**: `https://dm-hud-xxxxx.vercel.app`
-- **Production URL**: `https://dm-hud.vercel.app`
-- **Auto-deploy**: Every push to main → new deployment
-- **Preview deploys**: Every PR → preview deployment
-
 ---
 
-## 🔧 Configuration Files
+## Deploy Supabase Functions
 
-### vercel.json
-Already created with optimal settings:
-```json
-{
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "framework": "vite",
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
-}
-```
+Functions live in `supabase/functions/`:
 
-The rewrite rule ensures SPA routing works correctly (all routes serve index.html).
+- `ai-process`
+- `ai-riff`
+- `ai-report`
+- `ai-polish`
+- `ai-setup`
+- `get-deepgram-key`
 
-### package.json
-Scripts are already configured:
-- `npm run dev` - Development server
-- `npm run build` - Production build
-- `npm run preview` - Preview production build
-
----
-
-## 🧪 Testing Deployment
-
-After deploying, test these features:
-
-### Basic Functionality
-1. Open deployed URL
-2. Create a campaign
-3. Type a transcript entry
-4. Verify entity extraction works
-5. Check that data persists after refresh
-
-### API Keys
-1. Click Settings
-2. Add Anthropic API key
-3. Add Deepgram API key
-4. Verify they're stored in localStorage
-5. Refresh page - keys should persist
-
-### Features
-1. Test Roster (player → character mapping)
-2. Test Arc (DM context)
-3. Create entities
-4. Toggle combat/exploration modes
-5. Edit HP and stats
-6. Generate session report
-7. Export report as Markdown
-8. Test live audio (if you have API keys)
-
----
-
-## 📊 Monitoring
-
-### Vercel Dashboard
-- View deployment logs
-- Check build times
-- Monitor bandwidth usage
-- See visitor analytics (if enabled)
-
-### Browser Console
-- Check for JavaScript errors
-- Verify API calls work
-- Monitor localStorage usage
-
----
-
-## 🔄 Update Workflow
-
-After deployment is set up:
-
-1. **Make changes locally**
-   ```bash
-   # Make your changes
-   npm run dev  # Test locally
-   ```
-
-2. **Commit changes**
-   ```bash
-   git add .
-   git commit -m "Add feature X"
-   ```
-
-3. **Push to GitHub**
-   ```bash
-   git push origin main
-   ```
-
-4. **Automatic deployment**
-   - Vercel auto-detects push
-   - Builds and deploys automatically
-   - New version live in ~2 minutes
-
----
-
-## 🏷️ Version Tags
-
-For releases, use semantic versioning:
+Deploy one function:
 
 ```bash
-# Patch (0.8.0 → 0.8.1) - bug fixes
-git tag -a v0.8.1 -m "Fix HP calculation bug"
+npx supabase functions deploy ai-setup
+```
 
-# Minor (0.8.0 → 0.9.0) - new features
-git tag -a v0.9.0 -m "Add export/import functionality"
+Deploy all changed functions as needed:
 
-# Major (0.9.0 → 1.0.0) - breaking changes
-git tag -a v1.0.0 -m "Official release"
-
-# Push tags
-git push origin --tags
+```bash
+npx supabase functions deploy ai-process
+npx supabase functions deploy ai-riff
+npx supabase functions deploy ai-report
+npx supabase functions deploy ai-polish
+npx supabase functions deploy ai-setup
+npx supabase functions deploy get-deepgram-key
 ```
 
 ---
 
-## 🐛 Troubleshooting
+## Apply Database Migrations
 
-### Build Fails on Vercel
-- Check Vercel logs for specific error
-- Verify build works locally: `npm run build`
-- Check node version compatibility
-- Ensure all dependencies in package.json
+Migrations live in `supabase/migrations/`.
 
-### API Keys Not Working
-- API keys must be set by each user
-- Keys stored in localStorage (not deployed)
-- Users need their own Anthropic + Deepgram keys
+Current migrations:
 
-### SPA Routing Issues
-- Ensure vercel.json has rewrite rule
-- Vercel should auto-handle SPA routing
-- Check that all routes serve index.html
+- `001_initial_schema.sql`
+- `002_reports_table.sql`
+- `003_profile_security_usage.sql`
+- `004_voice_setup_usage_events.sql`
 
-### localStorage Not Persisting
-- Check browser privacy settings
-- Verify not in incognito/private mode
-- Check localStorage quota (10MB limit)
+Apply pending migrations with the Supabase CLI:
+
+```bash
+npx supabase db push
+```
+
+Before applying schema changes to production, check the diff and confirm the target project is the expected Supabase project.
 
 ---
 
-## 📧 Share Your Deployment
+## Auth and Beta Operations
 
-After deployment, share with:
+Primary join path:
 
-**For Users:**
-```
-Check out DM HUD - an AI assistant for D&D!
-🎲 https://dm-hud.vercel.app
+- User signs up at `/login` with email/password.
+- Supabase sends the normal email confirmation.
+- Profile defaults to `key_mode = 'byok'`.
+- User enters Anthropic + Deepgram keys in Tools -> Account.
 
-Features:
-✨ Real-time entity tracking
-🎤 Audio transcription
-📊 Character milestones
-📝 Session reports
+Managed beta path:
 
-You'll need API keys:
-- Anthropic (Claude): https://console.anthropic.com
-- Deepgram (optional): https://console.deepgram.com
-```
+- Superuser opens `/admin/users`.
+- Selects a user.
+- Toggles Key Mode from `BYOK` to `Managed`.
+- Anthropic and Deepgram usage then comes from server-side Supabase secrets.
 
-**For Developers:**
-```
-DM HUD - Open source D&D assistant
-📦 GitHub: https://github.com/YOUR_USERNAME/dm-hud
-🚀 Demo: https://dm-hud.vercel.app
-📖 Docs: README.md
-
-Tech: React + Vite + Tailwind + Claude AI
-```
+This is a manual beta comp-tab mechanism, not a billing system. There are no automated quotas or paid tiers yet.
 
 ---
 
-## ✅ Deployment Complete!
+## Post-Deploy QA
 
-Once both GitHub and Vercel are set up:
-
-1. Share your repo URL with other Claude sessions
-2. Vercel auto-deploys on every push
-3. Users can fork and deploy their own instances
-4. Continuous delivery is set up
-
-**Next:** Continue development, users can test the live version!
+1. Visit [dmhud.com](https://dmhud.com).
+2. Sign in with a real Supabase account.
+3. Confirm `/app` loads campaigns.
+4. Confirm BYOK settings save.
+5. Toggle a test user to Managed in `/admin/users`.
+6. Create a new campaign and test the voice setup prompt.
+7. Test live transcription and file upload transcription.
+8. Check `/admin` stats, user detail, AI logs, and usage events.
 
 ---
 
-## 🎉 You're Done!
+## Troubleshooting
 
-Your DM HUD is now:
-- ✅ Version controlled on GitHub
-- ✅ Publicly accessible on Vercel
-- ✅ Auto-deploying on changes
-- ✅ Ready for users and collaborators
+If AI calls fail:
 
-Happy DMing! 🎲✨
+- BYOK users need valid Anthropic and Deepgram keys in Tools -> Account.
+- Managed users require Supabase `ANTHROPIC_API_KEY` and `DEEPGRAM_API_KEY` secrets.
+- Check the relevant Supabase Edge Function logs.
+- Check `ai_logs` in the admin dashboard for Anthropic function status.
+
+If auth hangs:
+
+- Verify Supabase Site URL is `https://dmhud.com`.
+- Verify redirect URLs include `https://dmhud.com/**`.
+- Remember the auth provider avoids `getSession()` inside `onAuthStateChange` to prevent deadlocks.
+
+If Vercel routes 404:
+
+- Confirm `vercel.json` has the SPA rewrite.
+- Confirm the deployment is using the Vite build output.
