@@ -174,6 +174,302 @@ const RIFF_TEMPLATES = {
   ],
 };
 
+const COUNT_WORDS = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+  pair: 2,
+  couple: 2,
+  trio: 3,
+  dozen: 12,
+};
+
+const ORDINAL_WORDS = {
+  first: 1,
+  second: 2,
+  third: 3,
+  fourth: 4,
+  fifth: 5,
+  sixth: 6,
+  seventh: 7,
+  eighth: 8,
+  ninth: 9,
+  tenth: 10,
+};
+
+const NAME_STOP_WORDS = new Set([
+  'a', 'an', 'the', 'of', 'and', 'or', 'with', 'in', 'on', 'at', 'by', 'to', 'from',
+]);
+
+const DIRECTION_WORDS = new Set([
+  'left', 'right', 'middle', 'center', 'centre', 'front', 'back', 'rear', 'last',
+  'nearest', 'far', 'farther', 'farthest',
+]);
+
+const DUPLICATE_WINDOW_MS = 10 * 60 * 1000;
+
+const escapeRegExp = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const parseCount = (value) => {
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.max(1, Math.floor(value));
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  if (/^\d+$/.test(normalized)) return Math.max(1, parseInt(normalized, 10));
+  return COUNT_WORDS[normalized] || null;
+};
+
+const singularizeWord = (word) => {
+  const lower = word.toLowerCase();
+  const irregular = {
+    people: 'person',
+    men: 'man',
+    women: 'woman',
+    children: 'child',
+    thieves: 'thief',
+    knives: 'knife',
+    wolves: 'wolf',
+    elves: 'elf',
+  };
+  if (irregular[lower]) return irregular[lower];
+  if (lower.endsWith('ies') && lower.length > 4) return `${lower.slice(0, -3)}y`;
+  if (lower.endsWith('ves') && lower.length > 4) return `${lower.slice(0, -3)}f`;
+  if (lower.endsWith('s') && !lower.endsWith('ss') && lower.length > 3) return lower.slice(0, -1);
+  return lower;
+};
+
+const titleCaseName = (name) => name
+  .split(/\s+/)
+  .filter(Boolean)
+  .map(word => `${word.charAt(0).toUpperCase()}${word.slice(1).toLowerCase()}`)
+  .join(' ');
+
+const stripNumberSuffix = (name = '') => String(name).replace(/\s+#?\d+$/i, '').trim();
+
+const hasNumberSuffix = (name = '') => /\s+#?\d+$/i.test(String(name).trim());
+
+const getNumberSuffix = (name = '') => {
+  const match = String(name).trim().match(/\s+#?(\d+)$/i);
+  return match ? parseInt(match[1], 10) : null;
+};
+
+const nameTokens = (name = '') => String(name)
+  .toLowerCase()
+  .replace(/['']/g, '')
+  .replace(/[^a-z0-9\s-]/g, ' ')
+  .replace(/-/g, ' ')
+  .split(/\s+/)
+  .map(token => token.trim())
+  .filter(Boolean)
+  .filter(token => !NAME_STOP_WORDS.has(token))
+  .map(singularizeWord);
+
+const normalizeName = (name = '') => nameTokens(stripNumberSuffix(name)).join(' ');
+
+const normalizeExactName = (name = '') => nameTokens(name).join(' ');
+
+const baseCreatureName = (name = '') => {
+  const tokens = nameTokens(stripNumberSuffix(name))
+    .filter(token => !Object.keys(ORDINAL_WORDS).includes(token))
+    .filter(token => !DIRECTION_WORDS.has(token));
+  return tokens.length ? tokens[tokens.length - 1] : '';
+};
+
+const singularDisplayName = (name = '') => {
+  const words = stripNumberSuffix(name)
+    .replace(/[^a-zA-Z0-9\s-]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter(word => !NAME_STOP_WORDS.has(word.toLowerCase()));
+
+  if (!words.length) return titleCaseName(name || 'Enemy');
+
+  const lastIndex = words.length - 1;
+  words[lastIndex] = singularizeWord(words[lastIndex]);
+  return titleCaseName(words.join(' '));
+};
+
+const mergeText = (existing = '', incoming = '') => {
+  const a = String(existing || '').trim();
+  const b = String(incoming || '').trim();
+  if (!b) return a;
+  if (!a) return b;
+
+  const normA = a.toLowerCase().replace(/\s+/g, ' ');
+  const normB = b.toLowerCase().replace(/\s+/g, ' ');
+  if (normA.includes(normB)) return a;
+  if (normB.includes(normA)) return b;
+  return `${a}\n${b}`;
+};
+
+const mergeList = (existing = [], incoming = []) => {
+  const seen = new Set();
+  return [...(existing || []), ...(incoming || [])].filter(item => {
+    const key = typeof item === 'string' ? item.toLowerCase() : JSON.stringify(item);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+const cardCreatedAtMs = (card) => {
+  const ms = card?.createdAt ? Date.parse(card.createdAt) : NaN;
+  return Number.isFinite(ms) ? ms : null;
+};
+
+const cardsAreNearInTime = (a, b) => {
+  const aMs = cardCreatedAtMs(a);
+  const bMs = cardCreatedAtMs(b);
+  if (aMs == null || bMs == null) return true;
+  return Math.abs(aMs - bMs) <= DUPLICATE_WINDOW_MS;
+};
+
+const hasNameEvidenceInNotes = (shortCard, longCard) => {
+  const longTokens = nameTokens(longCard?.name || '');
+  const evidenceTokens = nameTokens(`${shortCard?.name || ''} ${shortCard?.notes || ''}`);
+  if (!longTokens.length || !evidenceTokens.length) return false;
+  const evidence = new Set(evidenceTokens);
+  return longTokens.filter(token => evidence.has(token)).length >= Math.min(2, longTokens.length);
+};
+
+const isLikelyDuplicateCard = (a, b, { requireTimeProximity = true } = {}) => {
+  if (!a || !b || a.id === b.id) return false;
+  if (a.type !== b.type) return false;
+  if (hasNumberSuffix(a.name) || hasNumberSuffix(b.name)) return false;
+  if (requireTimeProximity && !cardsAreNearInTime(a, b)) return false;
+
+  const aNorm = normalizeName(a.name);
+  const bNorm = normalizeName(b.name);
+  if (!aNorm || !bNorm) return false;
+  if (aNorm === bNorm) return true;
+
+  const aTokens = new Set(nameTokens(a.name));
+  const bTokens = new Set(nameTokens(b.name));
+  const overlap = [...aTokens].filter(token => bTokens.has(token)).length;
+  const minSize = Math.min(aTokens.size, bTokens.size);
+  const maxSize = Math.max(aTokens.size, bTokens.size);
+
+  if (minSize >= 2 && overlap / minSize >= 0.8) return true;
+  if (minSize === 1 && maxSize <= 5) {
+    return hasNameEvidenceInNotes(a, b) || hasNameEvidenceInNotes(b, a);
+  }
+
+  return false;
+};
+
+const choosePreferredName = (primary, incoming) => {
+  const primaryTokens = nameTokens(primary?.name || '');
+  const incomingTokens = nameTokens(incoming?.name || '');
+  if (normalizeName(primary?.name) === normalizeName(incoming?.name)) return primary?.name;
+  if (incomingTokens.length > primaryTokens.length && !hasNumberSuffix(incoming?.name)) return incoming.name;
+  return primary?.name;
+};
+
+const mergeCardData = (existing, incoming = {}, { authoritativeBooleans = false, authoritativeCount = false } = {}) => {
+  const merged = {};
+  const mergeBool = (key) => {
+    if (!(key in incoming)) return;
+    merged[key] = authoritativeBooleans ? incoming[key] : Boolean(existing?.[key] || incoming[key]);
+  };
+
+  if ('name' in incoming && incoming.name) merged.name = incoming.name;
+  if ('notes' in incoming) merged.notes = mergeText(existing?.notes, incoming.notes);
+  if ('type' in incoming && incoming.type) merged.type = incoming.type === 'ENEMY' ? 'CHARACTER' : incoming.type;
+
+  mergeBool('isCanon');
+  mergeBool('isPC');
+  mergeBool('inParty');
+  mergeBool('isHostile');
+  mergeBool('inCombat');
+
+  if ('hp' in incoming) merged.hp = incoming.hp ?? existing?.hp ?? null;
+  if ('ac' in incoming && incoming.ac != null) merged.ac = incoming.ac;
+  if ('level' in incoming && incoming.level != null) merged.level = incoming.level;
+  if ('class' in incoming && incoming.class) merged.class = incoming.class;
+  if ('stats' in incoming) merged.stats = { ...(existing?.stats || {}), ...(incoming.stats || {}) };
+  if ('status' in incoming) merged.status = mergeList(existing?.status, incoming.status);
+  if ('riffs' in incoming) merged.riffs = { ...(existing?.riffs || {}), ...(incoming.riffs || {}) };
+  if ('canonFacts' in incoming) merged.canonFacts = mergeList(existing?.canonFacts, incoming.canonFacts);
+  if ('genesis' in incoming) merged.genesis = mergeText(existing?.genesis, incoming.genesis);
+  if ('image' in incoming && incoming.image) merged.image = incoming.image;
+
+  const existingCount = parseCount(existing?.count) || 1;
+  const incomingCount = parseCount(incoming.count);
+  if (incomingCount && incomingCount !== existingCount) {
+    merged.count = authoritativeCount ? incomingCount : Math.max(existingCount, incomingCount);
+  }
+
+  return merged;
+};
+
+const inferCountFromText = (text = '', entityName = '') => {
+  const base = baseCreatureName(entityName);
+  if (!base) return null;
+
+  const countWords = Object.keys(COUNT_WORDS).join('|');
+  const countToken = `(?:\\d+|${countWords})`;
+  const basePattern = `${escapeRegExp(base)}s?`;
+  const pattern = new RegExp(`\\b(${countToken})\\s+(?:[a-z]+\\s+){0,3}${basePattern}\\b`, 'i');
+  const match = String(text).toLowerCase().match(pattern);
+  return match ? parseCount(match[1]) : null;
+};
+
+const ordinalIndexForName = (name = '', maxCount = 0) => {
+  const lower = String(name).toLowerCase();
+  const explicitNumber = getNumberSuffix(lower);
+  if (explicitNumber) return explicitNumber;
+  for (const [word, index] of Object.entries(ORDINAL_WORDS)) {
+    if (new RegExp(`\\b${word}\\b`, 'i').test(lower)) return index;
+  }
+  if (/\b(left|front|nearest)\b/i.test(lower)) return 1;
+  if (/\b(middle|center|centre)\b/i.test(lower) && maxCount >= 3) return Math.ceil(maxCount / 2);
+  if (/\b(right|back|rear|last|farthest)\b/i.test(lower) && maxCount > 0) return maxCount;
+  return null;
+};
+
+const findCardMatch = (cards, incoming = {}) => {
+  const incomingName = incoming.name || '';
+  const incomingType = incoming.type === 'ENEMY' ? 'CHARACTER' : incoming.type;
+  const activeCards = cards.filter(card => !card.voidedAt);
+  const sameTypeCards = incomingType
+    ? activeCards.filter(card => card.type === incomingType)
+    : activeCards;
+  const incomingNorm = normalizeName(incomingName);
+  const incomingBase = baseCreatureName(incomingName);
+
+  if (!incomingNorm) return null;
+
+  const incomingExactNorm = normalizeExactName(incomingName);
+  const exact = sameTypeCards.find(card => normalizeExactName(card.name) === incomingExactNorm);
+  if (exact) return exact;
+
+  const numberedMatches = sameTypeCards
+    .filter(card => card.type === 'CHARACTER' && hasNumberSuffix(card.name) && baseCreatureName(card.name) === incomingBase)
+    .sort((a, b) => (getNumberSuffix(a.name) || 0) - (getNumberSuffix(b.name) || 0));
+  const ordinalIndex = ordinalIndexForName(incomingName, numberedMatches.length);
+  if (ordinalIndex) {
+    const ordinalMatch = numberedMatches.find(card => getNumberSuffix(card.name) === ordinalIndex);
+    if (ordinalMatch) return ordinalMatch;
+  }
+
+  const groupMatch = sameTypeCards.find(card =>
+    card.type === 'CHARACTER' &&
+    !hasNumberSuffix(card.name) &&
+    baseCreatureName(card.name) === incomingBase
+  );
+  if (groupMatch) return groupMatch;
+
+  return sameTypeCards.find(card => isLikelyDuplicateCard(card, incoming, { requireTimeProximity: false })) || null;
+};
+
 // Storage hook removed — data now stored in Supabase
 // See src/lib/db.js for data access and src/hooks/useCampaign.js for React hooks
 
@@ -2200,6 +2496,7 @@ const CampaignView = ({ campaign, onUpdateLocal, onBack, settings, onSaveSetting
   const lastAICallRef = useRef(0);
   const pendingTextRef = useRef([]);
   const throttleTimerRef = useRef(null);
+  const aiProcessingPromiseRef = useRef(Promise.resolve());
 
   const currentSession = sessions.find(s => s.id === currentSessionId) || sessions[sessions.length - 1];
   const activeCards = allCards.filter(c => !c.voidedAt);
@@ -2391,7 +2688,14 @@ const CampaignView = ({ campaign, onUpdateLocal, onBack, settings, onSaveSetting
       // Build context for the Edge Function
       const existingCards = currentCards.map(c => {
         const facts = (c.canonFacts || []).join('; ');
-        return `${c.name} (${c.type}): ${c.notes || ''}${facts ? ' | ' + facts : ''}`;
+        const flags = [
+          c.isPC ? 'PC' : null,
+          c.inParty ? 'in party' : null,
+          c.isHostile ? 'hostile' : null,
+          c.inCombat ? 'in combat' : null,
+          c.count && c.count > 1 ? `count ${c.count}` : null,
+        ].filter(Boolean).join(', ');
+        return `${c.name} (${c.type}${flags ? `; ${flags}` : ''}): ${c.notes || ''}${facts ? ' | ' + facts : ''}`;
       }).join('\n') || 'None';
 
       const roster = (state.playerRoster || []).map(p => {
@@ -2415,29 +2719,156 @@ const CampaignView = ({ campaign, onUpdateLocal, onBack, settings, onSaveSetting
       const ai = aiResult.result;
       console.log('✅ AI result from Edge Function:', ai);
 
+      let workingCards = [...stateRef.current.allCards];
+      const syncWorkingCards = () => {
+        stateRef.current = { ...stateRef.current, allCards: workingCards };
+      };
+      const activeWorkingCards = () => workingCards.filter(card => !card.voidedAt);
+
+      const applyCardUpdate = (card, updates, options = {}) => {
+        if (!card || !updates) return card;
+        const mergedUpdates = mergeCardData(card, updates, options);
+        const updatedCard = { ...card, ...mergedUpdates };
+        workingCards = workingCards.map(existing => existing.id === card.id ? updatedCard : existing);
+        syncWorkingCards();
+        updateCard(card.id, mergedUpdates);
+        return updatedCard;
+      };
+
+      const createWorkingCard = async (cardData) => {
+        const normalizedCard = {
+          ...cardData,
+          type: cardData.type === 'ENEMY' ? 'CHARACTER' : (cardData.type || 'CHARACTER'),
+        };
+        const created = await addCard(normalizedCard, combinedText);
+        workingCards = [...workingCards, created];
+        syncWorkingCards();
+        return created;
+      };
+
+      const voidWorkingCard = async (card) => {
+        const voidedAt = new Date().toISOString();
+        const voidedCard = { ...card, voidedAt, voidedInSession: state.currentSessionId };
+        workingCards = workingCards.map(existing => existing.id === card.id ? voidedCard : existing);
+        syncWorkingCards();
+        setAllCards(prev => prev.map(existing => existing.id === card.id ? voidedCard : existing));
+        if (selected?.id === card.id) setSelected(null);
+        try {
+          await dbOps.voidCard(card.id, state.currentSessionId);
+        } catch (err) {
+          console.error('Failed to void duplicate card:', err);
+        }
+      };
+
+      const ensureSplitCombatants = async (seedCard, targetCount, incoming = {}) => {
+        const count = Math.min(parseCount(targetCount) || 1, 12);
+        if (!seedCard || count < 2 || seedCard.type !== 'CHARACTER') return;
+
+        const baseName = singularDisplayName(seedCard.name || incoming.name || 'Enemy');
+        const base = baseCreatureName(baseName);
+        const source = {
+          ...seedCard,
+          ...incoming,
+          type: 'CHARACTER',
+          notes: mergeText(seedCard.notes, incoming.notes),
+          isCanon: seedCard.isCanon ?? incoming.isCanon ?? true,
+          isPC: false,
+          inParty: false,
+          isHostile: true,
+          inCombat: true,
+          count: 1,
+        };
+
+        const matchesBase = card => card.type === 'CHARACTER' && baseCreatureName(card.name) === base && !card.voidedAt;
+        let numbered = activeWorkingCards()
+          .filter(card => matchesBase(card) && hasNumberSuffix(card.name))
+          .sort((a, b) => (getNumberSuffix(a.name) || 0) - (getNumberSuffix(b.name) || 0));
+
+        const group = activeWorkingCards().find(card => matchesBase(card) && !hasNumberSuffix(card.name));
+        if (group) {
+          const firstName = `${baseName} 1`;
+          const updatedFirst = applyCardUpdate(group, {
+            ...source,
+            name: firstName,
+            count: 1,
+          }, { authoritativeBooleans: false, authoritativeCount: true });
+          numbered = [updatedFirst, ...numbered.filter(card => card.id !== updatedFirst.id)]
+            .sort((a, b) => (getNumberSuffix(a.name) || 0) - (getNumberSuffix(b.name) || 0));
+        }
+
+        for (let index = 1; index <= count; index += 1) {
+          const expectedName = `${baseName} ${index}`;
+          const existing = activeWorkingCards().find(card => normalizeExactName(card.name) === normalizeExactName(expectedName));
+          if (existing) {
+            applyCardUpdate(existing, {
+              ...source,
+              name: expectedName,
+              count: 1,
+            }, { authoritativeBooleans: false, authoritativeCount: true });
+            continue;
+          }
+
+          await createWorkingCard({
+            ...source,
+            name: expectedName,
+            count: 1,
+          });
+        }
+      };
+
+      const reconcileDuplicateCards = async () => {
+        let foundDuplicate = true;
+        while (foundDuplicate) {
+          foundDuplicate = false;
+          const active = activeWorkingCards();
+          for (let i = 0; i < active.length; i += 1) {
+            for (let j = i + 1; j < active.length; j += 1) {
+              const first = active[i];
+              const second = active[j];
+              if (!isLikelyDuplicateCard(first, second)) continue;
+
+              const firstMs = cardCreatedAtMs(first) ?? 0;
+              const secondMs = cardCreatedAtMs(second) ?? 0;
+              const primary = firstMs <= secondMs ? first : second;
+              const duplicate = primary.id === first.id ? second : first;
+              const preferredName = choosePreferredName(primary, duplicate);
+
+              applyCardUpdate(primary, {
+                ...duplicate,
+                name: preferredName,
+              }, { authoritativeBooleans: false });
+              await voidWorkingCard(duplicate);
+              foundDuplicate = true;
+              break;
+            }
+            if (foundDuplicate) break;
+          }
+        }
+      };
+
+      const nextMode = ai.modeSwitch || mode;
+
       // Apply HP changes
       if (ai.hpChanges?.length) {
-        const latestCards = stateRef.current.allCards;
         ai.hpChanges.forEach(change => {
-          const card = latestCards.find(c => c.name.toLowerCase() === change.name.toLowerCase());
+          const card = findCardMatch(activeWorkingCards(), { name: change.name, type: 'CHARACTER' });
           if (card?.hp) {
             const delta = change.damage ? -change.damage : (change.healing || 0);
             const newCurrent = Math.max(0, Math.min(card.hp.max, card.hp.current + delta));
-            updateCard(card.id, { hp: { ...card.hp, current: newCurrent } });
+            applyCardUpdate(card, { hp: { ...card.hp, current: newCurrent } });
           }
         });
       }
 
       // Apply status changes
       if (ai.statusChanges?.length) {
-        const latestCards = stateRef.current.allCards;
         ai.statusChanges.forEach(change => {
-          const card = latestCards.find(c => c.name.toLowerCase() === change.name.toLowerCase());
+          const card = findCardMatch(activeWorkingCards(), { name: change.name, type: 'CHARACTER' });
           if (card) {
             let newStatus = [...(card.status || [])];
             if (change.addStatus) change.addStatus.forEach(s => { if (!newStatus.includes(s)) newStatus.push(s); });
             if (change.removeStatus) change.removeStatus.forEach(s => { newStatus = newStatus.filter(x => x !== s); });
-            updateCard(card.id, { status: newStatus });
+            applyCardUpdate(card, { status: newStatus });
           }
         });
       }
@@ -2459,69 +2890,125 @@ const CampaignView = ({ campaign, onUpdateLocal, onBack, settings, onSaveSetting
 
       // Apply card updates
       if (ai.cardUpdates?.length) {
-        const latestCards = stateRef.current.allCards;
-        const cardsToCreate = [];
-
-        ai.cardUpdates.forEach(upd => {
-          const existing = latestCards.find(c => c.name.toLowerCase() === upd.name.toLowerCase());
+        for (const upd of ai.cardUpdates) {
+          const updateData = upd.updates || {};
+          const inferredCount = parseCount(updateData.count) || inferCountFromText(combinedText, upd.name);
+          const incoming = {
+            name: upd.name,
+            ...updateData,
+            count: inferredCount || updateData.count,
+          };
+          const existing = findCardMatch(activeWorkingCards(), incoming);
           if (existing) {
-            updateCard(existing.id, upd.updates);
-          } else {
-            cardsToCreate.push({
-              type: 'CHARACTER',
-              name: upd.name,
-              notes: upd.updates?.notes || '',
-              isCanon: true,
-              isPC: false,
-              inParty: false,
-              isHostile: upd.updates?.isHostile || false,
-              inCombat: upd.updates?.inCombat || false,
-              ...upd.updates,
-              genesis: combinedText,
+            const updatedCard = applyCardUpdate(existing, incoming, {
+              authoritativeBooleans: true,
+              authoritativeCount: Boolean(inferredCount || updateData.count),
             });
-          }
-        });
-
-        // Create cards that didn't exist
-        for (const cardData of cardsToCreate) {
-          const latestNow = stateRef.current.allCards;
-          if (!latestNow.some(c => c.name.toLowerCase() === cardData.name.toLowerCase())) {
-            await addCard(cardData, combinedText);
+            const combatCount = parseCount(incoming.count);
+            if (
+              combatCount > 1 &&
+              updatedCard.type === 'CHARACTER' &&
+              (updatedCard.isHostile || updatedCard.inCombat || incoming.isHostile || incoming.inCombat)
+            ) {
+              await ensureSplitCombatants(updatedCard, combatCount, incoming);
+            }
+          } else {
+            const combatCount = parseCount(incoming.count);
+            if (combatCount > 1 && (incoming.isHostile || incoming.inCombat)) {
+              const first = await createWorkingCard({
+                ...incoming,
+                type: 'CHARACTER',
+                name: `${singularDisplayName(incoming.name)} 1`,
+                isCanon: true,
+                isPC: false,
+                inParty: false,
+                isHostile: true,
+                inCombat: true,
+                count: 1,
+                genesis: combinedText,
+              });
+              await ensureSplitCombatants(first, combatCount, incoming);
+            } else {
+              await createWorkingCard({
+                ...incoming,
+                type: incoming.type || 'CHARACTER',
+                name: upd.name,
+                notes: updateData.notes || '',
+                isCanon: true,
+                isPC: false,
+                inParty: false,
+                isHostile: updateData.isHostile || false,
+                inCombat: updateData.inCombat || false,
+                genesis: combinedText,
+              });
+            }
           }
         }
       }
 
       // Create new cards
       if (ai.newCards?.length) {
-        const latestCards = stateRef.current.allCards;
+        for (const c of ai.newCards) {
+          const normalizedType = c.type === 'ENEMY' ? 'CHARACTER' : (c.type || 'CHARACTER');
+          const inferredCount = parseCount(c.count) || inferCountFromText(combinedText, c.name);
+          const incoming = {
+            ...c,
+            type: normalizedType,
+            count: inferredCount || c.count,
+            inCombat: nextMode === 'combat' && normalizedType === 'CHARACTER'
+              ? true
+              : (c.inCombat || false),
+          };
+          const existing = findCardMatch(activeWorkingCards(), incoming);
 
-        // Expand cards with count > 1
-        const expandedCards = ai.newCards.flatMap(c => {
-          const count = c.count || 1;
-          if (count > 1) {
-            return Array.from({ length: count }, (_, i) => ({ ...c, name: `${c.name} ${i + 1}`, count: undefined }));
+          if (existing) {
+            const updatedCard = applyCardUpdate(existing, incoming, {
+              authoritativeBooleans: false,
+              authoritativeCount: Boolean(inferredCount || c.count),
+            });
+            const combatCount = parseCount(incoming.count);
+            if (
+              combatCount > 1 &&
+              updatedCard.type === 'CHARACTER' &&
+              (updatedCard.isHostile || updatedCard.inCombat || incoming.isHostile || incoming.inCombat)
+            ) {
+              await ensureSplitCombatants(updatedCard, combatCount, incoming);
+            }
+            continue;
           }
-          return [{ ...c, count: undefined }];
-        });
 
-        for (const c of expandedCards) {
-          if (!latestCards.some(x => x.name.toLowerCase() === c.name.toLowerCase())) {
-            await addCard({
-              ...c,
-              inCombat: mode === 'combat' && c.type === 'CHARACTER' ? true : (c.inCombat || false),
-            }, combinedText);
+          const combatCount = parseCount(incoming.count);
+          if (
+            combatCount > 1 &&
+            normalizedType === 'CHARACTER' &&
+            (incoming.isHostile || incoming.inCombat)
+          ) {
+            const first = await createWorkingCard({
+              ...incoming,
+              name: `${singularDisplayName(incoming.name)} 1`,
+              isHostile: true,
+              inCombat: true,
+              count: 1,
+            });
+            await ensureSplitCombatants(first, combatCount, incoming);
+          } else {
+            await createWorkingCard({
+              ...incoming,
+              count: undefined,
+            });
           }
         }
       }
 
       // Handle combatants
       if (ai.combatants?.length) {
-        const latestCards = stateRef.current.allCards;
         ai.combatants.forEach(name => {
-          const card = latestCards.find(c => c.name.toLowerCase() === name.toLowerCase());
-          if (card && !card.inCombat) updateCard(card.id, { inCombat: true });
+          const card = findCardMatch(activeWorkingCards(), { name, type: 'CHARACTER' });
+          if (card && !card.inCombat) applyCardUpdate(card, { inCombat: true });
         });
       }
+
+      await reconcileDuplicateCards();
 
       if (ai.modeSwitch) {
         setMode(ai.modeSwitch);
@@ -2530,6 +3017,13 @@ const CampaignView = ({ campaign, onUpdateLocal, onBack, settings, onSaveSetting
       console.error('❌ AI processing error:', e);
     }
     setProcessing(false);
+  };
+
+  const enqueueAIProcessing = (textsToProcess) => {
+    aiProcessingPromiseRef.current = aiProcessingPromiseRef.current
+      .catch(() => {})
+      .then(() => executeAIProcessing(textsToProcess));
+    return aiProcessingPromiseRef.current;
   };
 
   // Throttled processAI — saves transcript to Supabase immediately, batches AI calls
@@ -2558,7 +3052,7 @@ const CampaignView = ({ campaign, onUpdateLocal, onBack, settings, onSaveSetting
       const textsToProcess = [...pendingTextRef.current];
       pendingTextRef.current = [];
       lastAICallRef.current = now;
-      await executeAIProcessing(textsToProcess);
+      await enqueueAIProcessing(textsToProcess);
     } else if (!throttleTimerRef.current) {
       const waitTime = THROTTLE_MS - timeSinceLastCall;
       throttleTimerRef.current = setTimeout(async () => {
@@ -2567,7 +3061,7 @@ const CampaignView = ({ campaign, onUpdateLocal, onBack, settings, onSaveSetting
         lastAICallRef.current = Date.now();
         throttleTimerRef.current = null;
         if (textsToProcess.length > 0) {
-          await executeAIProcessing(textsToProcess);
+          await enqueueAIProcessing(textsToProcess);
         }
       }, waitTime);
     }

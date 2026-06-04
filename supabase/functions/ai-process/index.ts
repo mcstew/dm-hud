@@ -30,8 +30,15 @@ INSTRUCTIONS:
 6. CRITICAL - Entity clarification patterns (UPDATE existing, DON'T create new):
    - "the barmaid introduces herself as Greta" → UPDATE existing "barmaid" with name: "Greta"
    - "the tall goblin in the middle" → UPDATE existing goblin with description
+   - "the gem is the Magical Gem of Infinite Ability" → UPDATE existing "Gem" with the fuller name/details
+   - "the inn is Hazeltown Inn" when Hazeltown Inn already exists → UPDATE existing, do not create a second card
    - Look at RECENT CONTEXT - if a generic term was JUST mentioned, this is likely a clarification
-7. For multiple creatures (e.g., "three goblins", "six thieves"), use "count" field (count: 3, count: 6)
+7. Multiple enemy combatants:
+   - For small active enemy groups (2-12 creatures), ALWAYS include an exact "count" field.
+   - "ambushed by ruffians" followed later by "there are three ruffians" → UPDATE existing "Ruffians" with {"count": 3, "isHostile": true, "inCombat": true}
+   - If a count is known on first mention, return one new card with the plural/common name and "count" (the app will split into individual combatants).
+   - When individual descriptors appear, target the specific numbered enemy if known: "middle ruffian" → "Ruffian 2" when there are three.
+   - Add distinguishing details to notes/canonFacts/status instead of creating another generic group card.
 8. Only create NEW entities if they're genuinely new, not clarifications of recent mentions
 9. IMPORTANT: Detect HP changes from phrases like:
    - "X takes 5 damage" → {"name": "X", "damage": 5}
@@ -47,10 +54,11 @@ INSTRUCTIONS:
 Return ONLY valid JSON (no markdown):
 {
   "newCards": [{"type": "CHARACTER", "name": "...", "notes": "...", "isCanon": true, "isPC": false, "inParty": false, "isHostile": false, "inCombat": false, "count": 1}],
-  "cardUpdates": [{"name": "...", "updates": {...}}],
+  "cardUpdates": [{"name": "...", "updates": {"name": "...", "notes": "...", "count": 3, "isHostile": true, "inCombat": true}}],
   "hpChanges": [{"name": "...", "damage": 5}],
   "statusChanges": [{"name": "...", "addStatus": ["Poisoned"]}],
   "events": [{"character": "...", "type": "check", "detail": "...", "outcome": "success"}],
+  "combatants": ["..."],
   "modeSwitch": "combat"
 }
 
