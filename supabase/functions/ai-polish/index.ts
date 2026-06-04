@@ -83,7 +83,7 @@ Return ONLY the cleaned transcript, nothing else.`
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20250514',
+        model: 'claude-haiku-4-5',
         max_tokens: 8000,
         messages: [{ role: 'user', content: userPrompt }],
       }),
@@ -97,7 +97,7 @@ Return ONLY the cleaned transcript, nothing else.`
       user_id: user.id,
       campaign_id: campaignId,
       function_type: 'polish',
-      model: 'claude-haiku-4-5-20250514',
+      model: 'claude-haiku-4-5',
       user_prompt: userPrompt,
       response_text: polishedText,
       tokens_in: aiData.usage?.input_tokens,

@@ -132,6 +132,7 @@ const Icons = {
   fileText: <IconFileText size={16} stroke={2} />,
   send: <IconSend size={16} stroke={2} />,
   userPlus: <IconUserPlus size={16} stroke={2} />,
+  brain: <IconBrain size={16} stroke={2} />,
 };
 
 // D&D 5.5e Conditions
@@ -172,6 +173,27 @@ const RIFF_TEMPLATES = {
     { key: 'twist', label: 'Twist', prompt: 'an unexpected development' },
     { key: 'connection', label: 'Connection', prompt: 'how this connects elsewhere' },
   ],
+};
+
+const DEEPGRAM_MODEL = 'nova-3';
+const MAX_DEEPGRAM_KEYTERMS = 50;
+
+const SETUP_SCOPE_CONFIG = {
+  campaign: {
+    title: 'Configure Roster & Arc',
+    prompt: 'Record a quick campaign brain dump. DM HUD will pull out players, characters, aliases, and campaign arc notes.',
+    applyLabel: 'Apply Setup',
+  },
+  roster: {
+    title: 'Voice Roster',
+    prompt: 'Record who is playing, what characters they play, and any nicknames or likely mispronunciations.',
+    applyLabel: 'Apply Roster',
+  },
+  arc: {
+    title: 'Voice Arc',
+    prompt: 'Record the secret context, planned threads, factions, villains, mysteries, or tone you want the AI to remember.',
+    applyLabel: 'Apply Arc',
+  },
 };
 
 const COUNT_WORDS = {
@@ -218,6 +240,192 @@ const DIRECTION_WORDS = new Set([
 const DUPLICATE_WINDOW_MS = 10 * 60 * 1000;
 
 const escapeRegExp = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const isPersistedRosterId = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(id || ''));
+
+const normalizeAliases = (aliases) => {
+  const raw = Array.isArray(aliases)
+    ? aliases
+    : String(aliases || '').split(/[,;\n]/);
+  const seen = new Set();
+  return raw
+    .map(alias => String(alias || '').trim())
+    .filter(Boolean)
+    .filter(alias => {
+      const key = alias.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+};
+
+const normalizeRosterEntries = (entries = []) => entries
+  .map(entry => ({
+    id: isPersistedRosterId(entry?.id) ? entry.id : undefined,
+    playerName: String(entry?.playerName || '').trim(),
+    characterName: String(entry?.characterName || '').trim(),
+    characterId: entry?.characterId || null,
+    aliases: normalizeAliases(entry?.aliases),
+  }))
+  .filter(entry => entry.playerName || entry.characterName || entry.aliases.length);
+
+const rosterMergeKey = (entry) => [
+  String(entry?.playerName || '').trim().toLowerCase(),
+  String(entry?.characterName || '').trim().toLowerCase(),
+].filter(Boolean).join('|');
+
+const findRosterMergeKey = (entriesByKey, entry) => {
+  const exactKey = rosterMergeKey(entry);
+  if (entriesByKey.has(exactKey)) return exactKey;
+
+  const playerName = String(entry?.playerName || '').trim().toLowerCase();
+  const characterName = String(entry?.characterName || '').trim().toLowerCase();
+  for (const [key, existing] of entriesByKey.entries()) {
+    const existingPlayer = String(existing?.playerName || '').trim().toLowerCase();
+    const existingCharacter = String(existing?.characterName || '').trim().toLowerCase();
+    if (characterName && existingCharacter && characterName === existingCharacter) return key;
+    if (playerName && existingPlayer && playerName === existingPlayer) return key;
+  }
+
+  return exactKey;
+};
+
+const mergeRosterEntries = (existing = [], incoming = []) => {
+  const merged = normalizeRosterEntries(existing);
+  const byKey = new Map(merged.map(entry => [rosterMergeKey(entry), entry]));
+
+  normalizeRosterEntries(incoming).forEach(entry => {
+    const key = findRosterMergeKey(byKey, entry);
+    if (!key) return;
+    const current = byKey.get(key);
+    const next = current
+      ? {
+          ...current,
+          ...entry,
+          id: current.id || entry.id,
+          playerName: entry.playerName || current.playerName,
+          characterName: entry.characterName || current.characterName,
+          aliases: normalizeAliases([...(current.aliases || []), ...(entry.aliases || [])]),
+        }
+      : entry;
+    byKey.set(key, next);
+  });
+
+  return Array.from(byKey.values());
+};
+
+const sanitizeDeepgramKeyterm = (value) => {
+  const term = String(value || '')
+    .replace(/\s+/g, ' ')
+    .replace(/[^\w\s'.-]/g, '')
+    .trim();
+  if (term.length < 3 || term.length > 80) return null;
+  if (/^\d+$/.test(term)) return null;
+  return term;
+};
+
+const addDeepgramKeyterm = (terms, value) => {
+  const term = sanitizeDeepgramKeyterm(value);
+  if (!term) return;
+  const key = term.toLowerCase();
+  if (terms.has(key)) return;
+  terms.set(key, term);
+};
+
+const collectDeepgramKeyterms = ({ campaign, cards = [], roster = [] }) => {
+  const terms = new Map();
+  addDeepgramKeyterm(terms, campaign?.name);
+
+  (roster || []).forEach(player => {
+    addDeepgramKeyterm(terms, player.playerName);
+    addDeepgramKeyterm(terms, player.characterName);
+    (player.aliases || []).forEach(alias => addDeepgramKeyterm(terms, alias));
+  });
+
+  (cards || []).forEach(card => {
+    addDeepgramKeyterm(terms, card.name);
+  });
+
+  return Array.from(terms.values()).slice(0, MAX_DEEPGRAM_KEYTERMS);
+};
+
+const applyDeepgramKeyterms = (params, keyterms = []) => {
+  keyterms
+    .map(sanitizeDeepgramKeyterm)
+    .filter(Boolean)
+    .slice(0, MAX_DEEPGRAM_KEYTERMS)
+    .forEach(term => params.append('keyterm', term));
+};
+
+const resolveDeepgramToken = async (settings) => {
+  if (!settings?.deepgramKey) throw new Error('Deepgram API key required');
+  if (settings.deepgramKey === '__managed__') return aiService.getDeepgramKey();
+  return settings.deepgramKey;
+};
+
+const getAudioDuration = (audioFile) => new Promise((resolve) => {
+  const url = URL.createObjectURL(audioFile);
+  const audio = document.createElement('audio');
+  audio.preload = 'metadata';
+  audio.onloadedmetadata = () => {
+    URL.revokeObjectURL(url);
+    resolve(Number.isFinite(audio.duration) ? audio.duration : null);
+  };
+  audio.onerror = () => {
+    URL.revokeObjectURL(url);
+    resolve(null);
+  };
+  audio.src = url;
+});
+
+const getSupportedAudioMimeType = () => {
+  if (typeof MediaRecorder === 'undefined') return '';
+  if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) return 'audio/webm;codecs=opus';
+  if (MediaRecorder.isTypeSupported('audio/webm')) return 'audio/webm';
+  return '';
+};
+
+const transcribeWithDeepgram = async ({
+  settings,
+  blob,
+  contentType,
+  keyterms = [],
+  options = {},
+}) => {
+  const deepgramToken = await resolveDeepgramToken(settings);
+  const params = new URLSearchParams({
+    model: DEEPGRAM_MODEL,
+    language: options.language || 'en',
+    smart_format: 'true',
+    punctuate: 'true',
+  });
+
+  if (options.paragraphs) params.set('paragraphs', 'true');
+  if (options.diarizeModel) params.set('diarize_model', options.diarizeModel);
+  if (options.diarize) params.set('diarize', 'true');
+  applyDeepgramKeyterms(params, keyterms);
+
+  const res = await fetch(`https://api.deepgram.com/v1/listen?${params.toString()}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Token ${deepgramToken}`,
+      'Content-Type': contentType || blob?.type || 'audio/webm',
+    },
+    body: blob,
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => '');
+    throw new Error(`Deepgram: ${res.status}${errorText ? ` - ${errorText.slice(0, 180)}` : ''}`);
+  }
+
+  const data = await res.json();
+  const alt = data.results?.channels?.[0]?.alternatives?.[0];
+  return {
+    data,
+    transcript: (alt?.paragraphs?.transcript || alt?.transcript || '').trim(),
+  };
+};
 
 const parseCount = (value) => {
   if (typeof value === 'number' && Number.isFinite(value)) return Math.max(1, Math.floor(value));
@@ -526,7 +734,7 @@ const ConfirmModal = ({ isOpen, title, message, onConfirm, onCancel }) => {
 };
 
 // Player Roster Modal
-const PlayerRosterModal = ({ isOpen, onClose, playerRoster, onSave }) => {
+const PlayerRosterModal = ({ isOpen, onClose, playerRoster, onSave, onVoiceSetup }) => {
   const [roster, setRoster] = useState(playerRoster || []);
   const [editingId, setEditingId] = useState(null);
 
@@ -580,7 +788,14 @@ const PlayerRosterModal = ({ isOpen, onClose, playerRoster, onSave }) => {
           <h2 className="font-semibold flex items-center gap-2">
             <IconUsers size={18} /> Player Roster
           </h2>
-          <IconButton icon="close" onClick={onClose} />
+          <div className="flex items-center gap-2">
+            {onVoiceSetup && (
+              <button onClick={onVoiceSetup} className="flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
+                {Icons.audio} Voice Fill
+              </button>
+            )}
+            <IconButton icon="close" onClick={onClose} />
+          </div>
         </div>
 
         <div className="flex-1 overflow-auto p-4">
@@ -645,7 +860,14 @@ const PlayerRosterModal = ({ isOpen, onClose, playerRoster, onSave }) => {
 
         <div className="p-4 border-t border-gray-800 flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" onClick={() => { onSave(roster); onClose(); }}>Save Roster</Button>
+          <Button variant="primary" onClick={async () => {
+            try {
+              await onSave(roster);
+              onClose();
+            } catch (e) {
+              console.error('Failed to save roster:', e);
+            }
+          }}>Save Roster</Button>
         </div>
       </div>
     </div>
@@ -653,7 +875,7 @@ const PlayerRosterModal = ({ isOpen, onClose, playerRoster, onSave }) => {
 };
 
 // Arc Modal (DM Context)
-const ArcModal = ({ isOpen, onClose, arc, onSave }) => {
+const ArcModal = ({ isOpen, onClose, arc, onSave, onVoiceSetup }) => {
   const [localArc, setLocalArc] = useState(arc);
 
   useEffect(() => { setLocalArc(arc); }, [arc, isOpen]);
@@ -665,7 +887,14 @@ const ArcModal = ({ isOpen, onClose, arc, onSave }) => {
       <div className="bg-gray-900 rounded-xl border border-gray-800 w-full max-w-lg max-h-[80vh] flex flex-col">
         <div className="p-4 border-b border-gray-800 flex items-center justify-between">
           <h2 className="font-semibold flex items-center gap-2">{Icons.book} Campaign Arc</h2>
-          <IconButton icon="close" onClick={onClose} />
+          <div className="flex items-center gap-2">
+            {onVoiceSetup && (
+              <button onClick={onVoiceSetup} className="flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
+                {Icons.audio} Voice Fill
+              </button>
+            )}
+            <IconButton icon="close" onClick={onClose} />
+          </div>
         </div>
 
         <div className="flex-1 overflow-auto p-4">
@@ -680,7 +909,351 @@ const ArcModal = ({ isOpen, onClose, arc, onSave }) => {
 
         <div className="p-4 border-t border-gray-800 flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" onClick={() => { onSave(localArc); onClose(); }}>Save Arc</Button>
+          <Button variant="primary" onClick={async () => {
+            try {
+              await onSave(localArc);
+              onClose();
+            } catch (e) {
+              console.error('Failed to save arc:', e);
+            }
+          }}>Save Arc</Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const VoiceSetupPromptModal = ({ isOpen, onClose, onStart }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
+      <div className="bg-gray-900 rounded-xl border border-gray-800 w-full max-w-lg p-5">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <div className="w-10 h-10 rounded-lg bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 flex items-center justify-center mb-3">
+              {Icons.brain}
+            </div>
+            <h2 className="text-lg font-semibold text-white">Would you like to configure the player roster and arc?</h2>
+          </div>
+          <IconButton icon="close" onClick={onClose} />
+        </div>
+        <p className="text-sm text-gray-400 leading-relaxed mb-5">
+          You can verbally share some context about who's playing and what you're planning. DM HUD will turn that into roster entries and DM-only arc notes.
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>Not Now</Button>
+          <Button variant="primary" onClick={onStart} className="flex items-center gap-2">{Icons.audio} Configure by Voice</Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const VoiceSetupModal = ({
+  isOpen,
+  scope = 'campaign',
+  settings,
+  campaignId,
+  existingRoster,
+  existingArc,
+  onApply,
+  onClose,
+}) => {
+  const config = SETUP_SCOPE_CONFIG[scope] || SETUP_SCOPE_CONFIG.campaign;
+  const [status, setStatus] = useState('idle');
+  const [error, setError] = useState(null);
+  const [transcript, setTranscript] = useState('');
+  const [proposedRoster, setProposedRoster] = useState([]);
+  const [proposedArc, setProposedArc] = useState('');
+  const mediaRecorderRef = useRef(null);
+  const streamRef = useRef(null);
+  const chunksRef = useRef([]);
+
+  const stopTracks = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+  };
+
+  const resetState = () => {
+    setStatus('idle');
+    setError(null);
+    setTranscript('');
+    setProposedRoster(normalizeRosterEntries(existingRoster || []));
+    setProposedArc(existingArc || '');
+    chunksRef.current = [];
+  };
+
+  useEffect(() => {
+    if (isOpen) resetState();
+    return () => {
+      if (mediaRecorderRef.current?.state === 'recording') {
+        try {
+          mediaRecorderRef.current.ondataavailable = null;
+          mediaRecorderRef.current.onstop = null;
+          mediaRecorderRef.current.stop();
+        } catch (e) { /* already stopped */ }
+      }
+      mediaRecorderRef.current = null;
+      stopTracks();
+    };
+  }, [isOpen, scope]);
+
+  const extractSetup = async (sourceTranscript) => {
+    const cleanTranscript = sourceTranscript.trim();
+    if (!cleanTranscript) throw new Error('No speech detected');
+
+    setStatus('extracting');
+    const data = await aiService.parseCampaignSetup({
+      campaignId,
+      scope,
+      transcript: cleanTranscript,
+      existingRoster: normalizeRosterEntries(existingRoster || []),
+      existingArc: existingArc || '',
+    });
+
+    const result = data?.result || {};
+    if (scope !== 'arc') {
+      setProposedRoster(mergeRosterEntries(existingRoster || [], result.roster || []));
+    }
+    if (scope !== 'roster') {
+      setProposedArc(String(result.arc || existingArc || '').trim());
+    }
+    setStatus('ready');
+  };
+
+  const transcribeRecording = async (blob) => {
+    try {
+      setStatus('transcribing');
+      setError(null);
+
+      const duration = await getAudioDuration(blob);
+      const { transcript: setupTranscript } = await transcribeWithDeepgram({
+        settings,
+        blob,
+        contentType: blob.type || 'audio/webm',
+      });
+
+      dbOps.recordUsageEvent({
+        eventType: duration ? 'setup_transcription_seconds' : 'setup_transcription_upload',
+        campaignId,
+        provider: 'deepgram',
+        model: DEEPGRAM_MODEL,
+        quantity: duration ? Math.round(duration) : blob.size,
+        unit: duration ? 'seconds' : 'bytes',
+        metadata: { scope },
+      }).catch(err => console.error('Failed to record setup transcription usage:', err));
+
+      setTranscript(setupTranscript);
+      await extractSetup(setupTranscript);
+    } catch (e) {
+      setError(e.message || 'Voice setup failed');
+      setStatus('idle');
+    }
+  };
+
+  const startRecording = async () => {
+    if (!settings.deepgramKey) {
+      setError('Deepgram API key required');
+      return;
+    }
+    if (typeof MediaRecorder === 'undefined') {
+      setError('Voice recording is not supported in this browser');
+      return;
+    }
+
+    try {
+      setError(null);
+      chunksRef.current = [];
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+        },
+      });
+      streamRef.current = stream;
+
+      const mimeType = getSupportedAudioMimeType();
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data?.size > 0) chunksRef.current.push(event.data);
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: mimeType || 'audio/webm' });
+        stopTracks();
+        mediaRecorderRef.current = null;
+        if (blob.size > 0) {
+          transcribeRecording(blob);
+        } else {
+          setError('No audio captured');
+          setStatus('idle');
+        }
+      };
+
+      recorder.start();
+      setStatus('recording');
+    } catch (e) {
+      stopTracks();
+      setError(e.message || 'Microphone access denied');
+      setStatus('idle');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current?.state === 'recording') {
+      setStatus('transcribing');
+      mediaRecorderRef.current.stop();
+    }
+  };
+
+  const updateRosterEntry = (index, updates) => {
+    setProposedRoster(prev => prev.map((entry, i) => i === index ? { ...entry, ...updates } : entry));
+  };
+
+  const removeRosterEntry = (index) => {
+    setProposedRoster(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const addRosterEntry = () => {
+    setProposedRoster(prev => [...prev, { id: `voice-${Date.now()}`, playerName: '', characterName: '', characterId: null, aliases: [] }]);
+  };
+
+  const applySetup = async () => {
+    setStatus('applying');
+    setError(null);
+    try {
+      await onApply({
+        scope,
+        roster: normalizeRosterEntries(proposedRoster),
+        arc: proposedArc,
+      });
+      onClose();
+    } catch (e) {
+      setError(e.message || 'Failed to apply setup');
+      setStatus('ready');
+    }
+  };
+
+  if (!isOpen) return null;
+
+  const busy = ['recording', 'transcribing', 'extracting', 'applying'].includes(status);
+  const canApply = status === 'ready';
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[80] p-4">
+      <div className="bg-gray-900 rounded-xl border border-gray-800 w-full max-w-3xl max-h-[86vh] flex flex-col">
+        <div className="p-4 border-b border-gray-800 flex items-start justify-between gap-4">
+          <div>
+            <h2 className="font-semibold text-white flex items-center gap-2">{Icons.audio} {config.title}</h2>
+            <p className="text-xs text-gray-500 mt-1">{config.prompt}</p>
+          </div>
+          <IconButton icon="close" onClick={onClose} />
+        </div>
+
+        <div className="flex-1 overflow-auto p-4 space-y-4">
+          <div className="bg-gray-950 border border-gray-800 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-gray-200">
+                {status === 'recording' ? 'Recording...' : status === 'transcribing' ? 'Transcribing...' : status === 'extracting' ? 'Extracting setup...' : 'Voice capture'}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">Deepgram {DEEPGRAM_MODEL} for speech, Claude Haiku for extraction.</p>
+            </div>
+            {status === 'recording' ? (
+              <Button variant="danger" onClick={stopRecording} className="flex items-center justify-center gap-2">{Icons.stop} Stop</Button>
+            ) : (
+              <Button variant="primary" onClick={startRecording} disabled={busy} className="flex items-center justify-center gap-2">{Icons.audio} {status === 'ready' ? 'Record Again' : 'Start Recording'}</Button>
+            )}
+          </div>
+
+          {error && (
+            <div className="bg-red-950/40 border border-red-800/50 rounded-lg p-3 text-sm text-red-300">
+              {error}
+            </div>
+          )}
+
+          {transcript && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs text-gray-500 uppercase tracking-wide">Transcript</label>
+                <button
+                  onClick={() => extractSetup(transcript).catch(e => { setError(e.message); setStatus('ready'); })}
+                  disabled={busy || !transcript.trim()}
+                  className="text-xs text-indigo-400 hover:text-indigo-300 disabled:opacity-50"
+                >
+                  Extract Fields
+                </button>
+              </div>
+              <textarea
+                value={transcript}
+                onChange={(e) => setTranscript(e.target.value)}
+                className="w-full h-24 bg-gray-950 border border-gray-800 rounded-lg p-3 text-sm text-gray-200 resize-none focus:border-indigo-500 focus:outline-none transition-colors"
+              />
+            </div>
+          )}
+
+          {scope !== 'arc' && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs text-gray-500 uppercase tracking-wide">Roster</label>
+                <button onClick={addRosterEntry} className="text-xs text-indigo-400 hover:text-indigo-300">+ Add Player</button>
+              </div>
+              <div className="space-y-2">
+                {proposedRoster.length === 0 ? (
+                  <div className="text-gray-600 text-xs italic p-3 border border-dashed border-gray-800 rounded-lg text-center">No roster entries yet</div>
+                ) : proposedRoster.map((player, index) => (
+                  <div key={player.id || index} className="bg-gray-950 border border-gray-800 rounded-lg p-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+                      <input
+                        type="text"
+                        value={player.playerName}
+                        onChange={(e) => updateRosterEntry(index, { playerName: e.target.value })}
+                        className="bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm text-white focus:border-indigo-500 focus:outline-none transition-colors"
+                        placeholder="Player name"
+                      />
+                      <input
+                        type="text"
+                        value={player.characterName}
+                        onChange={(e) => updateRosterEntry(index, { characterName: e.target.value })}
+                        className="bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm text-white focus:border-indigo-500 focus:outline-none transition-colors"
+                        placeholder="Character name"
+                      />
+                    </div>
+                    <input
+                      type="text"
+                      value={(player.aliases || []).join(', ')}
+                      onChange={(e) => updateRosterEntry(index, { aliases: normalizeAliases(e.target.value) })}
+                      className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm text-white focus:border-indigo-500 focus:outline-none transition-colors"
+                      placeholder="Aliases, nicknames, mispronunciations"
+                    />
+                    <button onClick={() => removeRosterEntry(index)} className="text-xs text-red-400 hover:text-red-300 mt-2">Remove</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {scope !== 'roster' && (
+            <div>
+              <label className="text-xs text-gray-500 uppercase tracking-wide block mb-2">Arc</label>
+              <textarea
+                value={proposedArc}
+                onChange={(e) => setProposedArc(e.target.value)}
+                className="w-full h-40 bg-gray-950 border border-gray-800 rounded-lg p-3 text-sm text-gray-200 resize-none focus:border-indigo-500 focus:outline-none transition-colors"
+                placeholder="DM-only arc context..."
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 border-t border-gray-800 flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={applySetup} disabled={!canApply}>{status === 'applying' ? 'Applying...' : config.applyLabel}</Button>
         </div>
       </div>
     </div>
@@ -1833,7 +2406,7 @@ const DetailDrawer = ({ card, isOpen, onClose, onUpdate, onDelete, onGenerateRif
 };
 
 // Audio Panel with Live Session
-const AudioPanel = ({ settings, onProcess, isProcessing, campaignId, sessionId }) => {
+const AudioPanel = ({ settings, onProcess, isProcessing, campaignId, sessionId, keyterms = [] }) => {
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState('idle');
   const [progress, setProgress] = useState(0);
@@ -1860,21 +2433,6 @@ const AudioPanel = ({ settings, onProcess, isProcessing, campaignId, sessionId }
       ...event,
     }).catch(err => console.error('Failed to record usage event:', err));
   };
-
-  const getAudioDuration = (audioFile) => new Promise((resolve) => {
-    const url = URL.createObjectURL(audioFile);
-    const audio = document.createElement('audio');
-    audio.preload = 'metadata';
-    audio.onloadedmetadata = () => {
-      URL.revokeObjectURL(url);
-      resolve(Number.isFinite(audio.duration) ? audio.duration : null);
-    };
-    audio.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve(null);
-    };
-    audio.src = url;
-  });
 
   // Ensure previous session is fully cleaned up
   const cleanupSession = () => {
@@ -1929,39 +2487,37 @@ const AudioPanel = ({ settings, onProcess, isProcessing, campaignId, sessionId }
       setLiveStatus('connecting');
 
       // Resolve the actual Deepgram key (fetch from Edge Function if managed)
-      let deepgramToken = settings.deepgramKey;
-      if (deepgramToken === '__managed__') {
-        try {
-          console.log('🎤 Fetching Deepgram key from Edge Function...');
-          deepgramToken = await aiService.getDeepgramKey();
-          console.log('🎤 Deepgram key received');
-        } catch (e) {
-          setError('Failed to get Deepgram key from server. Edge Functions may not be deployed yet.');
-          recordUsage({
-            eventType: 'transcription_error',
-            provider: 'deepgram',
-            model: 'nova-2',
-            metadata: { phase: 'key_resolution', message: e.message },
-          });
-          cleanupSession();
-          setLiveStatus('idle');
-          return;
-        }
+      let deepgramToken;
+      try {
+        console.log('🎤 Resolving Deepgram key...');
+        deepgramToken = await resolveDeepgramToken(settings);
+        console.log('🎤 Deepgram key ready');
+      } catch (e) {
+        setError('Failed to get Deepgram key from server. Edge Functions may not be deployed yet.');
+        recordUsage({
+          eventType: 'transcription_error',
+          provider: 'deepgram',
+          model: DEEPGRAM_MODEL,
+          metadata: { phase: 'key_resolution', message: e.message },
+        });
+        cleanupSession();
+        setLiveStatus('idle');
+        return;
       }
 
       // Connect to Deepgram WebSocket with optimized parameters
       // NOTE: Do NOT specify encoding/sample_rate — Deepgram auto-detects
       // the WebM/Opus container format from MediaRecorder.
       const dgParams = new URLSearchParams({
-        model: 'nova-2',
+        model: DEEPGRAM_MODEL,
         language: 'en',
         smart_format: 'true',
-        diarize: 'true',
         punctuate: 'true',
         interim_results: 'true',
         utterance_end_ms: '1500',
         vad_events: 'true',
       });
+      applyDeepgramKeyterms(dgParams, keyterms);
 
       console.log('🎤 Opening Deepgram WebSocket...');
       const ws = new WebSocket(
@@ -1980,7 +2536,8 @@ const AudioPanel = ({ settings, onProcess, isProcessing, campaignId, sessionId }
         recordUsage({
           eventType: 'live_transcription_started',
           provider: 'deepgram',
-          model: 'nova-2',
+          model: DEEPGRAM_MODEL,
+          metadata: { keytermCount: keyterms.length },
         });
 
         // Send keepalive every 8 seconds to prevent Deepgram timeout
@@ -2092,7 +2649,7 @@ const AudioPanel = ({ settings, onProcess, isProcessing, campaignId, sessionId }
         recordUsage({
           eventType: 'transcription_error',
           provider: 'deepgram',
-          model: 'nova-2',
+          model: DEEPGRAM_MODEL,
           metadata: { phase: 'websocket' },
         });
       };
@@ -2111,7 +2668,7 @@ const AudioPanel = ({ settings, onProcess, isProcessing, campaignId, sessionId }
       recordUsage({
         eventType: 'transcription_error',
         provider: 'deepgram',
-        model: 'nova-2',
+        model: DEEPGRAM_MODEL,
         metadata: { phase: 'live_session', message: e.message },
       });
       cleanupSession();
@@ -2136,9 +2693,10 @@ const AudioPanel = ({ settings, onProcess, isProcessing, campaignId, sessionId }
       recordUsage({
         eventType: 'live_transcription_seconds',
         provider: 'deepgram',
-        model: 'nova-2',
+        model: DEEPGRAM_MODEL,
         quantity: seconds,
         unit: 'seconds',
+        metadata: { keytermCount: keyterms.length },
       });
       liveStartedAtRef.current = null;
     }
@@ -2162,34 +2720,27 @@ const AudioPanel = ({ settings, onProcess, isProcessing, campaignId, sessionId }
     try {
       const fileDuration = await getAudioDuration(file);
 
-      // Resolve the actual Deepgram key
-      let deepgramToken = settings.deepgramKey;
-      if (deepgramToken === '__managed__') {
-        deepgramToken = await aiService.getDeepgramKey();
-      }
-
-      const buffer = await file.arrayBuffer();
-      const res = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&diarize=true&punctuate=true', {
-        method: 'POST',
-        headers: { 'Authorization': `Token ${deepgramToken}`, 'Content-Type': file.type || 'audio/wav' },
-        body: buffer,
+      const { data } = await transcribeWithDeepgram({
+        settings,
+        blob: file,
+        contentType: file.type || 'audio/wav',
+        keyterms,
+        options: { paragraphs: true, diarizeModel: 'latest' },
       });
-      if (!res.ok) throw new Error(`Deepgram: ${res.status}`);
       recordUsage({
         eventType: fileDuration ? 'file_transcription_seconds' : 'file_transcription_upload',
         provider: 'deepgram',
-        model: 'nova-2',
+        model: DEEPGRAM_MODEL,
         quantity: fileDuration ? Math.round(fileDuration) : file.size,
         unit: fileDuration ? 'seconds' : 'bytes',
-        metadata: { fileName: file.name, fileType: file.type || null, fileSize: file.size },
+        metadata: { fileName: file.name, fileType: file.type || null, fileSize: file.size, keytermCount: keyterms.length },
       });
-      const data = await res.json();
       const paras = data.results?.channels?.[0]?.alternatives?.[0]?.paragraphs?.paragraphs;
-      if (paras) {
+      if (paras?.length) {
         console.log(`📄 Processing ${paras.length} transcript paragraphs...`);
         for (let i = 0; i < paras.length; i++) {
           const p = paras[i];
-          const speaker = p.speaker === 0 ? 'DM' : `Player ${p.speaker}`;
+          const speaker = Number.isInteger(p.speaker) ? (p.speaker === 0 ? 'DM' : `Player ${p.speaker}`) : 'DM';
           const text = p.sentences.map(s => s.text).join(' ');
           setProgress(((i + 1) / paras.length) * 100);
           console.log(`  [${i+1}/${paras.length}] ${speaker}: ${text.substring(0, 50)}...`);
@@ -2211,7 +2762,7 @@ const AudioPanel = ({ settings, onProcess, isProcessing, campaignId, sessionId }
       recordUsage({
         eventType: 'transcription_error',
         provider: 'deepgram',
-        model: 'nova-2',
+        model: DEEPGRAM_MODEL,
         metadata: { phase: 'file_transcription', message: e.message, fileName: file?.name },
       });
       setStatus('error');
@@ -2411,7 +2962,7 @@ const CreateCardModal = ({ isOpen, onClose, onCreate, cardType }) => {
 };
 
 // Campaign View
-const CampaignView = ({ campaign, onUpdateLocal, onBack, settings, onSaveSettings, userId }) => {
+const CampaignView = ({ campaign, onUpdateLocal, onBack, settings, onSaveSettings, userId, showInitialSetupPrompt = false, onInitialSetupPromptHandled = () => {} }) => {
   // ── State: loaded from Supabase ──
   const [sessions, setSessions] = useState([]);
   const [allCards, setAllCards] = useState([]);
@@ -2433,6 +2984,8 @@ const CampaignView = ({ campaign, onUpdateLocal, onBack, settings, onSaveSetting
   const [showRoster, setShowRoster] = useState(false);
   const [showArc, setShowArc] = useState(false);
   const [showTools, setShowTools] = useState(false);
+  const [showSetupPrompt, setShowSetupPrompt] = useState(false);
+  const [voiceSetupScope, setVoiceSetupScope] = useState(null);
   const transcriptRef = useRef(null);
   const [showVoid, setShowVoid] = useState(false);
 
@@ -2517,9 +3070,65 @@ const CampaignView = ({ campaign, onUpdateLocal, onBack, settings, onSaveSetting
   // Auto-scroll transcript to bottom
   useEffect(() => { if (transcriptRef.current && transcriptOpen) transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight; }, [transcript, transcriptOpen]);
 
+  useEffect(() => {
+    if (dataLoaded && showInitialSetupPrompt) {
+      setShowSetupPrompt(true);
+    }
+  }, [dataLoaded, showInitialSetupPrompt]);
+
   if (!dataLoaded) {
     return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><div className="text-gray-400">Loading campaign...</div></div>;
   }
+
+  const saveRoster = async (newRoster) => {
+    const normalizedRoster = normalizeRosterEntries(newRoster);
+    setPlayerRoster(normalizedRoster);
+
+    try {
+      const retainedIds = new Set(normalizedRoster.filter(r => isPersistedRosterId(r.id)).map(r => r.id));
+      const toDelete = playerRoster.filter(r => isPersistedRosterId(r.id) && !retainedIds.has(r.id));
+      for (const r of toDelete) {
+        await dbOps.deleteRosterEntry(r.id);
+      }
+
+      const savedRows = [];
+      for (const r of normalizedRoster) {
+        const saved = await dbOps.upsertRosterEntry(campaign.id, r);
+        savedRows.push(dbRosterToFrontend(saved));
+      }
+      setPlayerRoster(savedRows);
+    } catch (err) {
+      console.error('Failed to save roster:', err);
+      throw err;
+    }
+  };
+
+  const saveArc = async (arc) => {
+    const nextArc = String(arc || '').trim();
+    setDmContext(nextArc);
+
+    try {
+      const updated = await dbOps.updateCampaign(campaign.id, { dm_context: nextArc });
+      onUpdateLocal(dbCampaignToFrontend(updated));
+    } catch (err) {
+      console.error('Failed to save DM context:', err);
+      throw err;
+    }
+  };
+
+  const applyVoiceSetup = async ({ scope, roster, arc }) => {
+    if (scope !== 'arc') {
+      await saveRoster(roster);
+    }
+    if (scope !== 'roster') {
+      await saveArc(arc);
+    }
+  };
+
+  const dismissSetupPrompt = () => {
+    setShowSetupPrompt(false);
+    onInitialSetupPromptHandled();
+  };
 
   // ── Card CRUD operations (write to Supabase) ──
 
@@ -3079,6 +3688,7 @@ const CampaignView = ({ campaign, onUpdateLocal, onBack, settings, onSaveSetting
   const locations = cards.filter(c => c.type === 'LOCATION');
   const items = cards.filter(c => c.type === 'ITEM');
   const plots = cards.filter(c => c.type === 'PLOT');
+  const deepgramKeyterms = collectDeepgramKeyterms({ campaign, cards: activeCards, roster: playerRoster });
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
@@ -3252,6 +3862,7 @@ const CampaignView = ({ campaign, onUpdateLocal, onBack, settings, onSaveSetting
             isProcessing={processing}
             campaignId={campaign.id}
             sessionId={currentSessionId}
+            keyterms={deepgramKeyterms}
           />
           <div className={`bg-gray-900/90 backdrop-blur-md rounded-2xl border border-gray-800 transition-all ${transcriptOpen ? 'h-96' : 'h-10'}`}>
             <div className="w-full px-3 py-2 flex items-center justify-between text-xs text-gray-400 border-b border-gray-800">
@@ -3294,39 +3905,37 @@ const CampaignView = ({ campaign, onUpdateLocal, onBack, settings, onSaveSetting
 
       <DetailDrawer card={selected} isOpen={!!selected} onClose={() => setSelected(null)} onUpdate={updateCard} onDelete={deleteCard} onGenerateRiff={genRiffFn} isGenerating={genRiff} onGetCharacterEvents={getCharacterEvents} />
       <CreateCardModal isOpen={!!createModalType} onClose={() => setCreateModalType(null)} onCreate={addCard} cardType={createModalType} />
+      <VoiceSetupPromptModal
+        isOpen={showSetupPrompt}
+        onClose={dismissSetupPrompt}
+        onStart={() => {
+          dismissSetupPrompt();
+          setVoiceSetupScope('campaign');
+        }}
+      />
+      <VoiceSetupModal
+        isOpen={!!voiceSetupScope}
+        scope={voiceSetupScope || 'campaign'}
+        settings={settings}
+        campaignId={campaign.id}
+        existingRoster={playerRoster}
+        existingArc={dmContext}
+        onApply={applyVoiceSetup}
+        onClose={() => setVoiceSetupScope(null)}
+      />
       <PlayerRosterModal
         isOpen={showRoster}
         onClose={() => setShowRoster(false)}
         playerRoster={playerRoster}
-        onSave={async (newRoster) => {
-          setPlayerRoster(newRoster);
-          // Sync roster to Supabase: delete removed, upsert existing/new
-          try {
-            const existingIds = new Set(newRoster.filter(r => r.id).map(r => r.id));
-            const toDelete = playerRoster.filter(r => !existingIds.has(r.id));
-            for (const r of toDelete) {
-              await dbOps.deleteRosterEntry(r.id);
-            }
-            for (const r of newRoster) {
-              await dbOps.upsertRosterEntry(campaign.id, r);
-            }
-          } catch (err) {
-            console.error('Failed to save roster:', err);
-          }
-        }}
+        onSave={saveRoster}
+        onVoiceSetup={() => setVoiceSetupScope('roster')}
       />
       <ArcModal
         isOpen={showArc}
         onClose={() => setShowArc(false)}
         arc={dmContext}
-        onSave={async (arc) => {
-          setDmContext(arc);
-          try {
-            await dbOps.updateCampaign(campaign.id, { dm_context: arc });
-          } catch (err) {
-            console.error('Failed to save DM context:', err);
-          }
-        }}
+        onSave={saveArc}
+        onVoiceSetup={() => setVoiceSetupScope('arc')}
       />
       <ToolsPanel
         isOpen={showTools}
@@ -3453,6 +4062,7 @@ function AppCore() {
   const [campaignsLoaded, setCampaignsLoaded] = useState(false);
   const [activeId, setActiveId] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [newCampaignSetupId, setNewCampaignSetupId] = useState(null);
 
   // Settings object for backward compatibility with components that expect it
   // In managed mode, the AI keys are handled server-side
@@ -3494,6 +4104,7 @@ function AppCore() {
       const { campaign, session } = await dbOps.createCampaign(user.id, name);
       const frontendCampaign = dbCampaignToFrontend(campaign);
       setCampaigns(prev => [frontendCampaign, ...prev]);
+      setNewCampaignSetupId(frontendCampaign.id);
       setActiveId(frontendCampaign.id);
     } catch (err) {
       console.error('Failed to create campaign:', err);
@@ -3532,7 +4143,16 @@ function AppCore() {
   return (
     <>
       {active ? (
-        <CampaignView campaign={active} onUpdateLocal={updateLocal} onBack={() => setActiveId(null)} settings={settings} onSaveSettings={onSaveSettings} userId={user.id} />
+        <CampaignView
+          campaign={active}
+          onUpdateLocal={updateLocal}
+          onBack={() => setActiveId(null)}
+          settings={settings}
+          onSaveSettings={onSaveSettings}
+          userId={user.id}
+          showInitialSetupPrompt={newCampaignSetupId === active.id}
+          onInitialSetupPromptHandled={() => setNewCampaignSetupId(null)}
+        />
       ) : (
         <CampaignsHome campaigns={campaigns} onSelect={setActiveId} onCreate={create} onDelete={del} settings={settings} onOpenSettings={() => setShowSettings(true)} onSignOut={signOut} profile={profile} />
       )}

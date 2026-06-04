@@ -68,6 +68,21 @@ export async function polishTranscript({ campaignId, transcriptEntries, isCampai
   return data;
 }
 
+export async function parseCampaignSetup({ campaignId, scope, transcript, existingRoster, existingArc }) {
+  const { data, error } = await supabase.functions.invoke('ai-setup', {
+    body: {
+      campaignId,
+      scope,
+      transcript,
+      existingRoster,
+      existingArc,
+    },
+  });
+
+  if (error) throw error;
+  return data;
+}
+
 export async function getDeepgramKey() {
   const { data, error } = await supabase.functions.invoke('get-deepgram-key');
   if (error) throw error;
