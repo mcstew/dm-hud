@@ -490,16 +490,57 @@ export async function deleteRosterEntry(id) {
 }
 
 // ============================================
-// PROFILES (for admin)
+// PROFILES
 // ============================================
 
-export async function updateProfile(id, updates) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single();
+export async function saveOwnProfileSettings({ displayName, anthropicKey, deepgramKey }) {
+  const { data, error } = await supabase.rpc('update_own_profile_settings', {
+    p_display_name: displayName ?? null,
+    p_anthropic_key: anthropicKey ?? null,
+    p_deepgram_key: deepgramKey ?? null,
+  });
+
+  if (error) throw error;
+  return data;
+}
+
+export async function adminUpdateProfile(id, updates) {
+  const { data, error } = await supabase.rpc('admin_update_profile', {
+    p_user_id: id,
+    p_key_mode: updates.key_mode ?? null,
+    p_is_superuser: updates.is_superuser ?? null,
+    p_display_name: updates.display_name ?? null,
+  });
+
+  if (error) throw error;
+  return data;
+}
+
+export async function touchProfileActivity() {
+  const { error } = await supabase.rpc('touch_profile_activity');
+  if (error) throw error;
+}
+
+export async function recordUsageEvent({
+  eventType,
+  campaignId = null,
+  sessionId = null,
+  provider = null,
+  model = null,
+  quantity = null,
+  unit = null,
+  metadata = {},
+}) {
+  const { data, error } = await supabase.rpc('record_usage_event', {
+    p_event_type: eventType,
+    p_campaign_id: campaignId,
+    p_session_id: sessionId,
+    p_provider: provider,
+    p_model: model,
+    p_quantity: quantity,
+    p_unit: unit,
+    p_metadata: metadata,
+  });
 
   if (error) throw error;
   return data;
@@ -512,7 +553,7 @@ export async function updateProfile(id, updates) {
 export async function adminFetchUsers(searchTerm = '') {
   let query = supabase
     .from('profiles')
-    .select('*')
+    .select('id, email, display_name, key_mode, is_superuser, created_at, last_active_at')
     .order('created_at', { ascending: false });
 
   if (searchTerm) {
@@ -525,15 +566,53 @@ export async function adminFetchUsers(searchTerm = '') {
 }
 
 export async function adminFetchUserDetail(userId) {
-  const [profileRes, campaignsRes] = await Promise.all([
-    supabase.from('profiles').select('*').eq('id', userId).single(),
+  const [profileRes, campaignsRes, usageRes] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('id, email, display_name, key_mode, is_superuser, created_at, last_active_at')
+      .eq('id', userId)
+      .single(),
     supabase.from('campaigns').select('*').eq('user_id', userId).order('updated_at', { ascending: false }),
+    supabase
+      .from('usage_events')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(100),
   ]);
 
   if (profileRes.error) throw profileRes.error;
+
+  const campaignIds = (campaignsRes.data || []).map(c => c.id);
+  let sessions = [];
+  let transcriptCount = 0;
+
+  if (campaignIds.length) {
+    const sessionsRes = await supabase
+      .from('sessions')
+      .select('id, campaign_id, name, start_time, end_time, is_active, created_at')
+      .in('campaign_id', campaignIds)
+      .order('start_time', { ascending: false })
+      .limit(100);
+
+    sessions = sessionsRes.data || [];
+
+    const sessionIds = sessions.map(s => s.id);
+    if (sessionIds.length) {
+      const transcriptRes = await supabase
+        .from('transcript_entries')
+        .select('id', { count: 'exact', head: true })
+        .in('session_id', sessionIds);
+      transcriptCount = transcriptRes.count || 0;
+    }
+  }
+
   return {
     profile: profileRes.data,
     campaigns: campaignsRes.data || [],
+    sessions,
+    transcriptCount,
+    usageEvents: usageRes.data || [],
   };
 }
 
@@ -571,18 +650,47 @@ export async function adminFetchAllCampaigns(searchTerm = '') {
 export async function adminFetchStats() {
   const now = new Date();
   const oneDayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+  const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  const [usersRes, dauRes, aiLogsRes, aiLogsTodayRes] = await Promise.all([
+  const [
+    usersRes,
+    dauRes,
+    wauRes,
+    campaignsRes,
+    sessionsRes,
+    aiLogsRes,
+    aiLogsTodayRes,
+    aiErrorsTodayRes,
+    usageTodayRes,
+  ] = await Promise.all([
     supabase.from('profiles').select('id', { count: 'exact', head: true }),
     supabase.from('profiles').select('id', { count: 'exact', head: true }).gte('last_active_at', oneDayAgo),
+    supabase.from('profiles').select('id', { count: 'exact', head: true }).gte('last_active_at', sevenDaysAgo),
+    supabase.from('campaigns').select('id', { count: 'exact', head: true }),
+    supabase.from('sessions').select('id', { count: 'exact', head: true }),
     supabase.from('ai_logs').select('id', { count: 'exact', head: true }),
     supabase.from('ai_logs').select('id', { count: 'exact', head: true }).gte('created_at', oneDayAgo),
+    supabase.from('ai_logs').select('id', { count: 'exact', head: true }).gte('created_at', oneDayAgo).not('error', 'is', null),
+    supabase
+      .from('usage_events')
+      .select('event_type, quantity, unit')
+      .gte('created_at', oneDayAgo)
+      .in('event_type', ['live_transcription_seconds', 'file_transcription_seconds']),
   ]);
+
+  const transcriptionSecondsToday = (usageTodayRes.data || [])
+    .filter(e => e.unit === 'seconds')
+    .reduce((sum, e) => sum + Number(e.quantity || 0), 0);
 
   return {
     totalUsers: usersRes.count || 0,
     dau: dauRes.count || 0,
+    wau: wauRes.count || 0,
+    totalCampaigns: campaignsRes.count || 0,
+    totalSessions: sessionsRes.count || 0,
     totalAICalls: aiLogsRes.count || 0,
     aiCallsToday: aiLogsTodayRes.count || 0,
+    aiErrorsToday: aiErrorsTodayRes.count || 0,
+    transcriptionMinutesToday: Math.round(transcriptionSecondsToday / 60),
   };
 }

@@ -2,6 +2,18 @@
 
 All notable changes to the DM HUD project will be documented in this file.
 
+## [Unreleased] - 2026-06-03
+
+### Security & Admin Visibility
+- Replaced broad client-side profile updates with scoped Supabase RPCs for BYOK settings and admin key-mode changes.
+- Added `usage_events` table and RPC-backed activity logging for app opens, live transcription duration, file transcription duration, and transcription errors.
+- Expanded admin stats with weekly active users, campaign/session counts, AI errors, and transcription minutes.
+- Expanded admin user detail with session/transcript counts and recent usage events.
+
+### Bug Fixes
+- Fixed manual enemy creation to store enemies as hostile `CHARACTER` cards, matching the unified character schema.
+- Updated BYOK settings copy so it no longer claims application-level key encryption.
+
 ## [0.9.0] - 2026-02-28
 
 ### Multi-User Backend (Supabase)

@@ -798,7 +798,7 @@ const ToolsPanel = ({ isOpen, onClose, campaign, sessions, currentSession, trans
                   <div className="bg-indigo-900/20 border border-indigo-500/30 rounded-lg p-3 mb-4">
                     <p className="text-xs text-indigo-300">🧪 <span className="font-medium">Beta:</span> Bring your own API keys to try DM HUD while we're in beta! Paid plans with included AI are coming soon.</p>
                   </div>
-                  <p className="text-xs text-gray-500 mb-4">Keys are stored encrypted on our server and used to call AI services on your behalf.</p>
+                  <p className="text-xs text-gray-500 mb-4">Keys are stored on your profile and used server-side to call AI services on your behalf.</p>
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-400 mb-1">Anthropic API Key</label>
@@ -1537,7 +1537,7 @@ const DetailDrawer = ({ card, isOpen, onClose, onUpdate, onDelete, onGenerateRif
 };
 
 // Audio Panel with Live Session
-const AudioPanel = ({ settings, onProcess, isProcessing }) => {
+const AudioPanel = ({ settings, onProcess, isProcessing, campaignId, sessionId }) => {
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState('idle');
   const [progress, setProgress] = useState(0);
@@ -1552,8 +1552,33 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
   const bufferTimerRef = useRef(null);
   const keepaliveRef = useRef(null);
   const isLiveRef = useRef(false); // Ref mirror of isLive for use in closures
+  const liveStartedAtRef = useRef(null);
   const [liveInterim, setLiveInterim] = useState('');
   const interimRef = useRef('');
+
+  const recordUsage = (event) => {
+    if (!campaignId || !sessionId) return;
+    dbOps.recordUsageEvent({
+      campaignId,
+      sessionId,
+      ...event,
+    }).catch(err => console.error('Failed to record usage event:', err));
+  };
+
+  const getAudioDuration = (audioFile) => new Promise((resolve) => {
+    const url = URL.createObjectURL(audioFile);
+    const audio = document.createElement('audio');
+    audio.preload = 'metadata';
+    audio.onloadedmetadata = () => {
+      URL.revokeObjectURL(url);
+      resolve(Number.isFinite(audio.duration) ? audio.duration : null);
+    };
+    audio.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(null);
+    };
+    audio.src = url;
+  });
 
   // Ensure previous session is fully cleaned up
   const cleanupSession = () => {
@@ -1616,6 +1641,12 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
           console.log('🎤 Deepgram key received');
         } catch (e) {
           setError('Failed to get Deepgram key from server. Edge Functions may not be deployed yet.');
+          recordUsage({
+            eventType: 'transcription_error',
+            provider: 'deepgram',
+            model: 'nova-2',
+            metadata: { phase: 'key_resolution', message: e.message },
+          });
           cleanupSession();
           setLiveStatus('idle');
           return;
@@ -1649,6 +1680,12 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
         setLiveStatus('recording');
         setIsLive(true);
         isLiveRef.current = true;
+        liveStartedAtRef.current = Date.now();
+        recordUsage({
+          eventType: 'live_transcription_started',
+          provider: 'deepgram',
+          model: 'nova-2',
+        });
 
         // Send keepalive every 8 seconds to prevent Deepgram timeout
         // Deepgram closes connections that don't receive data within its timeout window
@@ -1756,6 +1793,12 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
       ws.onerror = (err) => {
         console.error('🎤 WebSocket error:', err);
         setError('Connection error — try again');
+        recordUsage({
+          eventType: 'transcription_error',
+          provider: 'deepgram',
+          model: 'nova-2',
+          metadata: { phase: 'websocket' },
+        });
       };
 
       ws.onclose = (event) => {
@@ -1769,6 +1812,12 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
     } catch (e) {
       console.error('🎤 Live session error:', e);
       setError(e.message || 'Microphone access denied');
+      recordUsage({
+        eventType: 'transcription_error',
+        provider: 'deepgram',
+        model: 'nova-2',
+        metadata: { phase: 'live_session', message: e.message },
+      });
       cleanupSession();
       setLiveStatus('idle');
     }
@@ -1784,6 +1833,18 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
       console.log('🎤 Flushing final buffered transcript on stop');
       onProcess(`DM: ${transcriptBufferRef.current.trim()}`);
       transcriptBufferRef.current = '';
+    }
+
+    if (liveStartedAtRef.current) {
+      const seconds = Math.max(0, Math.round((Date.now() - liveStartedAtRef.current) / 1000));
+      recordUsage({
+        eventType: 'live_transcription_seconds',
+        provider: 'deepgram',
+        model: 'nova-2',
+        quantity: seconds,
+        unit: 'seconds',
+      });
+      liveStartedAtRef.current = null;
     }
 
     // Send close message to Deepgram before closing
@@ -1803,6 +1864,8 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
     if (!settings.deepgramKey || !file) return;
     setStatus('transcribing'); setError(null);
     try {
+      const fileDuration = await getAudioDuration(file);
+
       // Resolve the actual Deepgram key
       let deepgramToken = settings.deepgramKey;
       if (deepgramToken === '__managed__') {
@@ -1816,6 +1879,14 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
         body: buffer,
       });
       if (!res.ok) throw new Error(`Deepgram: ${res.status}`);
+      recordUsage({
+        eventType: fileDuration ? 'file_transcription_seconds' : 'file_transcription_upload',
+        provider: 'deepgram',
+        model: 'nova-2',
+        quantity: fileDuration ? Math.round(fileDuration) : file.size,
+        unit: fileDuration ? 'seconds' : 'bytes',
+        metadata: { fileName: file.name, fileType: file.type || null, fileSize: file.size },
+      });
       const data = await res.json();
       const paras = data.results?.channels?.[0]?.alternatives?.[0]?.paragraphs?.paragraphs;
       if (paras) {
@@ -1839,7 +1910,16 @@ const AudioPanel = ({ settings, onProcess, isProcessing }) => {
       }
       setStatus('complete');
       console.log('✅ File transcription complete');
-    } catch (e) { setError(e.message); setStatus('error'); }
+    } catch (e) {
+      setError(e.message);
+      recordUsage({
+        eventType: 'transcription_error',
+        provider: 'deepgram',
+        model: 'nova-2',
+        metadata: { phase: 'file_transcription', message: e.message, fileName: file?.name },
+      });
+      setStatus('error');
+    }
   };
 
   return (
@@ -1936,17 +2016,23 @@ const CreateCardModal = ({ isOpen, onClose, onCreate, cardType }) => {
 
   const handleCreate = () => {
     if (!name.trim()) return;
+    const normalizedType = cardType === 'ENEMY' ? 'CHARACTER' : cardType;
     const card = {
-      type: cardType,
+      type: normalizedType,
       name: name.trim(),
       notes: notes.trim(),
       isCanon: true,
     };
-    if (cardType === 'CHARACTER') {
+    if (cardType === 'ENEMY') {
+      card.isPC = false;
+      card.inParty = false;
+      card.isHostile = true;
+      card.inCombat = true;
+    } else if (normalizedType === 'CHARACTER') {
       card.isPC = isPC;
       card.inParty = isPC; // Default: PCs start in party, NPCs don't
     }
-    if ((cardType === 'CHARACTER' || cardType === 'ENEMY') && hp.trim()) {
+    if (normalizedType === 'CHARACTER' && hp.trim()) {
       const hpNum = parseInt(hp);
       if (!isNaN(hpNum) && hpNum > 0) {
         card.hp = { current: hpNum, max: hpNum };
@@ -2666,7 +2752,13 @@ const CampaignView = ({ campaign, onUpdateLocal, onBack, settings, onSaveSetting
 
       <div className="fixed bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-gray-950 via-gray-950/95 to-transparent">
         <div className="max-w-4xl mx-auto space-y-2">
-          <AudioPanel settings={settings} onProcess={processAI} isProcessing={processing} />
+          <AudioPanel
+            settings={settings}
+            onProcess={processAI}
+            isProcessing={processing}
+            campaignId={campaign.id}
+            sessionId={currentSessionId}
+          />
           <div className={`bg-gray-900/90 backdrop-blur-md rounded-2xl border border-gray-800 transition-all ${transcriptOpen ? 'h-96' : 'h-10'}`}>
             <div className="w-full px-3 py-2 flex items-center justify-between text-xs text-gray-400 border-b border-gray-800">
               <button onClick={() => setTranscriptOpen(!transcriptOpen)} className="flex items-center gap-2 hover:text-gray-200 transition-colors">
@@ -2862,7 +2954,7 @@ const CampaignView = ({ campaign, onUpdateLocal, onBack, settings, onSaveSetting
 
 // Main App (without error boundary)
 function AppCore() {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, refreshProfile } = useAuth();
   const [campaigns, setCampaigns] = useState([]);
   const [campaignsLoaded, setCampaignsLoaded] = useState(false);
   const [activeId, setActiveId] = useState(null);
@@ -2875,6 +2967,13 @@ function AppCore() {
     deepgramKey: profile?.key_mode === 'managed' ? '__managed__' : (profile?.deepgram_key_encrypted || ''),
     keyMode: profile?.key_mode || 'byok',
   };
+
+  useEffect(() => {
+    if (!user) return;
+    dbOps.recordUsageEvent({ eventType: 'app_open' }).catch(err => {
+      console.error('Failed to record app open:', err);
+    });
+  }, [user]);
 
   // Load campaigns from Supabase
   useEffect(() => {
@@ -2923,10 +3022,11 @@ function AppCore() {
     // Save BYOK keys to profile
     if (profile?.key_mode === 'byok') {
       try {
-        await dbOps.updateProfile(user.id, {
-          anthropic_key_encrypted: newSettings.anthropicKey,
-          deepgram_key_encrypted: newSettings.deepgramKey,
+        await dbOps.saveOwnProfileSettings({
+          anthropicKey: newSettings.anthropicKey,
+          deepgramKey: newSettings.deepgramKey,
         });
+        await refreshProfile();
       } catch (err) {
         console.error('Failed to save settings:', err);
       }

@@ -3,6 +3,21 @@ import { IconSearch, IconChevronLeft, IconToggleRight, IconToggleLeft } from '@t
 import * as dbOps from '../lib/db';
 import AILogsView from './AILogsView';
 
+const USAGE_LABELS = {
+  app_open: 'App opened',
+  live_transcription_started: 'Live transcription started',
+  live_transcription_seconds: 'Live transcription',
+  file_transcription_seconds: 'File transcription',
+  file_transcription_upload: 'File uploaded',
+  transcription_error: 'Transcription error',
+};
+
+function formatUsageQuantity(event) {
+  if (event.unit === 'seconds') return `${Math.round(Number(event.quantity || 0) / 60)} min`;
+  if (event.unit === 'bytes') return `${Math.round(Number(event.quantity || 0) / 1024 / 1024 * 10) / 10} MB`;
+  return event.quantity != null ? `${event.quantity} ${event.unit || ''}`.trim() : '—';
+}
+
 export default function UsersView({ onSelectUser, selectedUserId, onBack }) {
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState('');
@@ -37,7 +52,7 @@ export default function UsersView({ onSelectUser, selectedUserId, onBack }) {
   const toggleKeyMode = async (userId, currentMode) => {
     const newMode = currentMode === 'managed' ? 'byok' : 'managed';
     try {
-      await dbOps.updateProfile(userId, { key_mode: newMode });
+      await dbOps.adminUpdateProfile(userId, { key_mode: newMode });
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, key_mode: newMode } : u));
       if (userDetail?.profile?.id === userId) {
         setUserDetail(prev => ({ ...prev, profile: { ...prev.profile, key_mode: newMode } }));
@@ -49,7 +64,11 @@ export default function UsersView({ onSelectUser, selectedUserId, onBack }) {
 
   // User detail view
   if (selectedUserId && userDetail) {
-    const { profile, campaigns } = userDetail;
+    const { profile, campaigns, sessions = [], transcriptCount = 0, usageEvents = [] } = userDetail;
+    const transcriptionSeconds = usageEvents
+      .filter(e => e.unit === 'seconds')
+      .reduce((sum, e) => sum + Number(e.quantity || 0), 0);
+
     return (
       <div>
         <button onClick={() => { onBack?.(); setUserDetail(null); }} className="flex items-center gap-2 text-gray-400 hover:text-white text-sm mb-4 transition-colors">
@@ -84,6 +103,26 @@ export default function UsersView({ onSelectUser, selectedUserId, onBack }) {
           </div>
         </div>
 
+        {/* User activity summary */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+          <div className="bg-gray-900/40 border border-gray-800 rounded-lg p-4">
+            <p className="text-xs text-gray-500">Campaigns</p>
+            <p className="text-2xl font-semibold text-white mt-1">{campaigns.length}</p>
+          </div>
+          <div className="bg-gray-900/40 border border-gray-800 rounded-lg p-4">
+            <p className="text-xs text-gray-500">Sessions</p>
+            <p className="text-2xl font-semibold text-white mt-1">{sessions.length}</p>
+          </div>
+          <div className="bg-gray-900/40 border border-gray-800 rounded-lg p-4">
+            <p className="text-xs text-gray-500">Transcript Entries</p>
+            <p className="text-2xl font-semibold text-white mt-1">{transcriptCount}</p>
+          </div>
+          <div className="bg-gray-900/40 border border-gray-800 rounded-lg p-4">
+            <p className="text-xs text-gray-500">Tracked Audio</p>
+            <p className="text-2xl font-semibold text-white mt-1">{Math.round(transcriptionSeconds / 60)} min</p>
+          </div>
+        </div>
+
         {/* User's campaigns */}
         <div className="mb-6">
           <h3 className="text-sm font-semibold text-gray-300 mb-3">Campaigns ({campaigns.length})</h3>
@@ -99,6 +138,35 @@ export default function UsersView({ onSelectUser, selectedUserId, onBack }) {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+
+        {/* User's recent usage */}
+        <div className="mb-6">
+          <h3 className="text-sm font-semibold text-gray-300 mb-3">Recent Usage</h3>
+          {usageEvents.length === 0 ? (
+            <p className="text-xs text-gray-500 italic">No usage events yet</p>
+          ) : (
+            <div className="bg-gray-900/30 border border-gray-800 rounded-lg overflow-hidden">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-gray-800 text-gray-500">
+                    <th className="text-left px-3 py-2 font-medium">Event</th>
+                    <th className="text-left px-3 py-2 font-medium">Amount</th>
+                    <th className="text-left px-3 py-2 font-medium">When</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {usageEvents.slice(0, 12).map(event => (
+                    <tr key={event.id} className="border-b border-gray-800/50">
+                      <td className="px-3 py-2 text-gray-300">{USAGE_LABELS[event.event_type] || event.event_type}</td>
+                      <td className="px-3 py-2 text-gray-400">{formatUsageQuantity(event)}</td>
+                      <td className="px-3 py-2 text-gray-500">{new Date(event.created_at).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
